@@ -85,11 +85,25 @@ Future<void> unlockAudio() async {
   await _player.stop();
   await _player.setVolume(1);
 }
-Future<void> extendSession(String sessionId, int extraMinutes) async {
-  await FirebaseSessionService.extendSession(
-    sessionId: sessionId,
-    extraMinutes: extraMinutes,
-  );
-}
 
+  static const Map<int, int> extendPricing = {
+    30: 100,
+    60: 200,
+    120: 400,
+  };
+
+  Future<void> extendSession(String sessionId, int extraMinutes) async {
+    final extraPrice = extendPricing[extraMinutes] ?? 0;
+
+    await FirebaseFirestore.instance
+        .collection('sessions')
+        .doc(sessionId)
+        .update({
+      'duration': FieldValue.increment(extraMinutes * 60),
+      'price': FieldValue.increment(extraPrice),
+      'endTime': FieldValue.increment(extraMinutes * 60 * 1000),
+    });
+
+    notifyListeners();
+  }
 }

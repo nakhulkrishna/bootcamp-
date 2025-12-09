@@ -303,7 +303,7 @@ class _SessionManagementState extends State<SessionManagement> {
                     ),
                     child: Row(
                       children: [
-                        _buildHeaderCell("Device", flex: 2),
+                        _buildHeaderCell("Device", flex: 3),
                         _buildHeaderCell("Running Games", flex: 2),
                         _buildHeaderCell("Timer", flex: 2),
                           _buildHeaderCell("Price", flex: 2),
@@ -496,7 +496,7 @@ class _SessionManagementState extends State<SessionManagement> {
 
   Widget _buildDeviceCell(String name, bool isHovered) {
     return Expanded(
-      flex: 2,
+      flex: 3,
       child: Row(
         children: [
           AnimatedContainer(
@@ -880,6 +880,8 @@ Widget _buildPriceCell(int price, bool isHovered) {
     if (session == null) return;
 
     int selectedMinutes = 30;
+final extraPrice =
+    SessionProvider.extendPricing[selectedMinutes] ?? 0;
 
     showDialog(
       barrierColor: AppColors.background,
@@ -1095,7 +1097,7 @@ Widget _buildPriceCell(int price, bool isHovered) {
                                 value: 30,
                                 selectedValue: selectedMinutes,
                                 onTap: () =>
-                                    setState(() => selectedMinutes = 30),
+                                    setState(() => selectedMinutes = 1),
                               ),
                               _timeOptionCard(
                                 label: "+1 hour",

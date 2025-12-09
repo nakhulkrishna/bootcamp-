@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gaming_center/app.dart';
 import 'package:gaming_center/core/constants/colors.dart';
+import 'package:gaming_center/features/reports/provider/reports_provider.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class SideBar extends StatelessWidget {
@@ -13,7 +15,7 @@ class SideBar extends StatelessWidget {
       color: AppColors.surface,
       child: Column(
         children: [
-          const SizedBox(height: 24),
+          const SizedBox(height: 55),
 
           NavItem(
             icon: Icons.dashboard,
@@ -30,11 +32,7 @@ class SideBar extends StatelessWidget {
             label: "Sessions",
             section: AppSection.sessions,
           ),
-          NavItem(
-            icon: Icons.receipt_long,
-            label: "Billing",
-            section: AppSection.billing,
-          ),
+
           NavItem(
             icon: Icons.bar_chart,
             label: "Reports",
@@ -67,7 +65,7 @@ class TopBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: const [
           Text(
-            "Dashboard",
+            "BOOTCAMP ",
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -180,6 +178,15 @@ class NavItem extends StatelessWidget {
   }
 }
 
+String formatDuration(Duration d) {
+  final h = d.inHours;
+  final m = d.inMinutes % 60;
+
+  if (h > 0 && m > 0) return '${h}h ${m}m';
+  if (h > 0) return '${h}h';
+  return '${m}m';
+}
+
 class ScreenTimeChart extends StatefulWidget {
   const ScreenTimeChart({super.key});
 
@@ -192,16 +199,52 @@ class _ScreenTimeChartState extends State<ScreenTimeChart> {
 
   @override
   Widget build(BuildContext context) {
-    final data = {"PS1": 6, "PS2": 4, "PS3": 8, "PS4": 5, "PS5": 6, "PS6": 4, "PS7": 8, "PS8": 5,"PS9": 6, "PS10": 4, "PS11": 8, "PS12": 5};
-    final maxValue = data.values.reduce((a, b) => a > b ? a : b);
+    final Map<String, Duration> data = context
+        .watch<ReportsProvider>()
+        .getTodayScreenTimePerConsole();
+    final maxMinutes = data.isEmpty
+        ? 1
+        : data.values.map((d) => d.inMinutes).reduce((a, b) => a > b ? a : b);
+
+    final totalDuration = Duration(
+      minutes: data.values.fold(0, (sum, d) => sum + d.inMinutes),
+    );
+
+    // final maxValue = data.isEmpty
+    //     ? 1.0
+    //     : data.values.every((v) => v == 0)
+    //         ? 1.0
+    //         : data.values.reduce((a, b) => a > b ? a : b);
+
+    // final totalHours = data.values.fold(0.0, (a, b) => a + b);
+    if (data.isEmpty || totalDuration.inMinutes == 0) {
+      return _ChartContainer(
+        title: "Screen Time",
+        subtitle: "No usage today",
+        trailing: const Text(
+          "0m",
+          style: TextStyle(
+            color: AppColors.textMuted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        child: const Center(
+          child: Text(
+            "No screen time recorded",
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+        ),
+      );
+    }
 
     return _ChartContainer(
       title: "Screen Time",
       subtitle: selectedPeriod != null
-          ? "$selectedPeriod: ${data[selectedPeriod]}h"
-          : "Last 4 periods",
+          ? "$selectedPeriod • ${formatDuration(data[selectedPeriod]!)}"
+          : "Today’s console usage",
+
       trailing: Text(
-        "28h total",
+        "${formatDuration(totalDuration)} total",
         style: TextStyle(
           color: selectedPeriod != null
               ? AppColors.primary.withOpacity(0.6)
@@ -213,7 +256,13 @@ class _ScreenTimeChartState extends State<ScreenTimeChart> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: data.entries.map((e) {
-          final isHighest = e.value == maxValue;
+          final minutes = e.value.inMinutes;
+
+          final safeHeight = maxMinutes <= 0
+              ? 0.0
+              : (minutes / maxMinutes) * 180;
+
+          final isHighest = minutes == maxMinutes;
           final isSelected = selectedPeriod == e.key;
 
           return Expanded(
@@ -231,15 +280,15 @@ class _ScreenTimeChartState extends State<ScreenTimeChart> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       _AnimatedBar(
-                        height: (e.value / maxValue) * 180,
-                        isHighest: isHighest,
+                        height: safeHeight,
+                        isHighest: isHighest, // ✅ CORRECT
                         isSelected: isSelected,
                         child: Center(
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 200),
-                            opacity: isSelected ? 1.0 : 0.8,
+                            opacity: isSelected ? 1.0 : 0.85,
                             child: Text(
-                              "${e.value}h",
+                              formatDuration(e.value),
                               style: TextStyle(
                                 color: (isHighest || isSelected)
                                     ? Colors.white
@@ -251,19 +300,23 @@ class _ScreenTimeChartState extends State<ScreenTimeChart> {
                           ),
                         ),
                       ),
+
                       const SizedBox(height: 12),
                       AnimatedDefaultTextStyle(
                         duration: const Duration(milliseconds: 200),
                         style: TextStyle(
+                       overflow: TextOverflow.ellipsis,
+
                           color: isSelected
                               ? AppColors.primary
                               : AppColors.textMuted,
                           fontSize: isSelected ? 12 : 13,
+                          
                           fontWeight: isSelected
-                              ? FontWeight.w700
+                              ? FontWeight.w500
                               : FontWeight.w500,
                         ),
-                        child: Text(e.key),
+                        child: Text(e.key, ),
                       ),
                     ],
                   ),
@@ -289,16 +342,39 @@ class _PaymentsChartState extends State<PaymentsChart> {
 
   @override
   Widget build(BuildContext context) {
+    final raw = context.watch<ReportsProvider>().getDailyRevenue();
+
     final data = {
-      "Mon": 1200,
-      "Tue": 1800,
-      "Wed": 1400,
-      "Thu": 2200,
-      "Fri": 3200,
+      for (var e in raw.entries) DateFormat('EEE').format(e.key): e.value,
     };
 
-    final maxValue = data.values.reduce((a, b) => a > b ? a : b);
-    final total = data.values.reduce((a, b) => a + b);
+    if (data.isEmpty) {
+      return _ChartContainer(
+        title: "Payments",
+        subtitle: "No data yet",
+        trailing: const Text(
+          "₹0",
+          style: TextStyle(
+            color: AppColors.textMuted,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        child: const Center(
+          child: Text(
+            "No payment data available",
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+        ),
+      );
+    }
+
+    final maxValue = data.values.fold<int>(
+      0,
+      (max, v) => v.toInt() > max ? v.toInt() : max,
+    );
+
+    final total = data.values.fold<int>(0, (sum, v) => sum + v.toInt());
 
     return _ChartContainer(
       title: "Payments",
@@ -355,7 +431,8 @@ class _PaymentsChartState extends State<PaymentsChart> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _AnimatedProgressBar(
-                        progress: e.value / maxValue,
+                        progress: maxValue <= 0 ? 0 : e.value / maxValue,
+
                         isHighest: isHighest,
                         isSelected: isSelected,
                       ),
@@ -678,7 +755,7 @@ class _ChartContainer extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 28),
-          SizedBox(height: 220, child: child),
+          SizedBox(height: 380, child: child),
         ],
       ),
     );

@@ -4,6 +4,7 @@ import 'package:gaming_center/features/billing/presentation/dashboard.dart';
 import 'package:gaming_center/features/billing/widget/widgets.dart';
 import 'package:gaming_center/features/device_management/presentation/device_management.dart';
 import 'package:gaming_center/features/device_management/presentation/session_management.dart';
+import 'package:gaming_center/features/reports/presentation/reports_screen.dart';
 import 'package:provider/provider.dart';
 
 class AppRoutes {
@@ -72,10 +73,9 @@ class MainLayout extends StatelessWidget {
         case AppSection.sessions:
         return const SessionManagement();
 
-      case AppSection.billing:
-        return const DeviceScreen();
+
       case AppSection.reports:
-        return const DeviceScreen();
+        return const ReportsScreen();
 
       case AppSection.settings:
         return const DeviceScreen();
@@ -83,7 +83,7 @@ class MainLayout extends StatelessWidget {
   }
 }
 
-enum AppSection { dashboard, devices,sessions ,billing, reports, settings }
+enum AppSection { dashboard, devices,sessions , reports, settings }
 
 class NavigationProvider extends ChangeNotifier {
   AppSection _current = AppSection.dashboard;

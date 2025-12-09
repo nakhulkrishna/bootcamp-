@@ -217,7 +217,7 @@ class _AddConsoleDialogState extends State<AddConsoleDialog> {
 
               const SizedBox(height: 28),
 
-              // ✅ Actions
+              //  Actions
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -317,17 +317,17 @@ Duration remaining(SessionModel s) {
 }
 
 class _StartSessionDialogState extends State<StartSessionDialog> {
-  int _duration = 1800; // 30 min
+  int _duration = 1300; 
   String? _game;
   String _paymentMethod = "GPay";
   bool _loading = false;
   bool _isPaid = false;
   
-  // ✅ Pricing map
+  // Pricing map
   final Map<int, int> _pricing = {
-    1800: 50,   // 30 min = ₹50
-    3600: 100,  // 1 hour = ₹100
-    7200: 200,  // 2 hours = ₹200
+    1300: 100, 
+    3600: 150,  
+    7200: 200,  
   };
 
   @override
@@ -342,6 +342,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   int get _selectedPrice => _pricing[_duration] ?? 0;
 
   Future<void> _start() async {
+    log("function called");
     if (_game == null) return;
     setState(() => _loading = true);
     
@@ -458,9 +459,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                         Expanded(
                           child: _timeChip(
                             "30 min",
-                            1800,
+                            1300,
                             Icons.timer,
-                            "₹50",
+                            "100",
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -469,7 +470,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                             "1 hour",
                             3600,
                             Icons.hourglass_bottom,
-                            "₹100",
+                            "150",
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -478,7 +479,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                             "2 hours",
                             7200,
                             Icons.hourglass_full,
-                            "₹200",
+                            "200",
                           ),
                         ),
                       ],
@@ -680,7 +681,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: _loading ? null : () => Navigator.pop(context),
+                        onPressed:  () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           side: BorderSide(
