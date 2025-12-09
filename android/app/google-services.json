@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1092735611218",
+    "project_id": "bootcamp-db92b",
+    "storage_bucket": "bootcamp-db92b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1092735611218:android:19c62b48a8347bff770a8b",
+        "android_client_info": {
+          "package_name": "com.example.gaming_center"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5db_lnJk_YoGWec_-Hxj5COr9GwKwVak"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,686 @@
+import 'package:flutter/material.dart';
+import 'package:gaming_center/app.dart';
+import 'package:gaming_center/core/constants/colors.dart';
+import 'package:provider/provider.dart';
+
+class SideBar extends StatelessWidget {
+  const SideBar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 240,
+      color: AppColors.surface,
+      child: Column(
+        children: [
+          const SizedBox(height: 24),
+
+          NavItem(
+            icon: Icons.dashboard,
+            label: "Dashboard",
+            section: AppSection.dashboard,
+          ),
+          NavItem(
+            icon: Icons.devices,
+            label: "Devices",
+            section: AppSection.devices,
+          ),
+          NavItem(
+            icon: Icons.monitor,
+            label: "Sessions",
+            section: AppSection.sessions,
+          ),
+          NavItem(
+            icon: Icons.receipt_long,
+            label: "Billing",
+            section: AppSection.billing,
+          ),
+          NavItem(
+            icon: Icons.bar_chart,
+            label: "Reports",
+            section: AppSection.reports,
+          ),
+          NavItem(
+            icon: Icons.settings,
+            label: "Settings",
+            section: AppSection.settings,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TopBar extends StatelessWidget {
+  const TopBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: const [
+          Text(
+            "Dashboard",
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          CircleAvatar(
+            backgroundColor: AppColors.surfaceLight,
+            child: Icon(Icons.person, color: AppColors.icon),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DashboardCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+
+  const DashboardCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppColors.primary, size: 28),
+          const Spacer(),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final AppSection section;
+
+  const NavItem({
+    required this.icon,
+    required this.label,
+    required this.section,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final nav = context.watch<NavigationProvider>();
+    final bool isActive = nav.current == section;
+
+    return InkWell(
+      onTap: () {
+        context.read<NavigationProvider>().setSection(section);
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.primary.withOpacity(0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isActive ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: TextStyle(
+                color: isActive ? AppColors.primary : AppColors.textSecondary,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ScreenTimeChart extends StatefulWidget {
+  const ScreenTimeChart({super.key});
+
+  @override
+  State<ScreenTimeChart> createState() => _ScreenTimeChartState();
+}
+
+class _ScreenTimeChartState extends State<ScreenTimeChart> {
+  String? selectedPeriod;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = {"PS1": 6, "PS2": 4, "PS3": 8, "PS4": 5, "PS5": 6, "PS6": 4, "PS7": 8, "PS8": 5,"PS9": 6, "PS10": 4, "PS11": 8, "PS12": 5};
+    final maxValue = data.values.reduce((a, b) => a > b ? a : b);
+
+    return _ChartContainer(
+      title: "Screen Time",
+      subtitle: selectedPeriod != null
+          ? "$selectedPeriod: ${data[selectedPeriod]}h"
+          : "Last 4 periods",
+      trailing: Text(
+        "28h total",
+        style: TextStyle(
+          color: selectedPeriod != null
+              ? AppColors.primary.withOpacity(0.6)
+              : AppColors.primary,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: data.entries.map((e) {
+          final isHighest = e.value == maxValue;
+          final isSelected = selectedPeriod == e.key;
+
+          return Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  selectedPeriod = isSelected ? null : e.key;
+                });
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _AnimatedBar(
+                        height: (e.value / maxValue) * 180,
+                        isHighest: isHighest,
+                        isSelected: isSelected,
+                        child: Center(
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 200),
+                            opacity: isSelected ? 1.0 : 0.8,
+                            child: Text(
+                              "${e.value}h",
+                              style: TextStyle(
+                                color: (isHighest || isSelected)
+                                    ? Colors.white
+                                    : AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: isSelected ? 14 : 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 200),
+                        style: TextStyle(
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textMuted,
+                          fontSize: isSelected ? 12 : 13,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                        child: Text(e.key),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class PaymentsChart extends StatefulWidget {
+  const PaymentsChart({super.key});
+
+  @override
+  State<PaymentsChart> createState() => _PaymentsChartState();
+}
+
+class _PaymentsChartState extends State<PaymentsChart> {
+  String? selectedDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = {
+      "Mon": 1200,
+      "Tue": 1800,
+      "Wed": 1400,
+      "Thu": 2200,
+      "Fri": 3200,
+    };
+
+    final maxValue = data.values.reduce((a, b) => a > b ? a : b);
+    final total = data.values.reduce((a, b) => a + b);
+
+    return _ChartContainer(
+      title: "Payments",
+      subtitle: selectedDay != null
+          ? "$selectedDay: ₹${data[selectedDay]}"
+          : "This week",
+      trailing: Text(
+        "₹$total",
+        style: TextStyle(
+          color: selectedDay != null
+              ? AppColors.primary.withOpacity(0.6)
+              : AppColors.primary,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+      child: Column(
+        children: data.entries.map((e) {
+          final percentage = (e.value / maxValue * 100).toInt();
+          final isHighest = e.value == maxValue;
+          final isSelected = selectedDay == e.key;
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                selectedDay = isSelected ? null : e.key;
+              });
+            },
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.only(bottom: 16),
+                transform: Matrix4.identity()
+                  ..translate(isSelected ? 4.0 : 0.0, 0.0),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 36,
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 200),
+                        style: TextStyle(
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textMuted,
+                          fontSize: isSelected ? 14 : 13,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                        child: Text(e.key),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _AnimatedProgressBar(
+                        progress: e.value / maxValue,
+                        isHighest: isHighest,
+                        isSelected: isSelected,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 60,
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 200),
+                        style: TextStyle(
+                          color: (isHighest || isSelected)
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: isSelected ? 14 : 13,
+                        ),
+                        child: Text("₹${e.value}", textAlign: TextAlign.right),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (isHighest || isSelected)
+                            ? AppColors.primary.withOpacity(0.15)
+                            : AppColors.surface,
+                        borderRadius: BorderRadius.circular(4),
+                        border: isSelected
+                            ? Border.all(
+                                color: AppColors.primary.withOpacity(0.3),
+                                width: 1,
+                              )
+                            : null,
+                      ),
+                      child: Text(
+                        "$percentage%",
+                        style: TextStyle(
+                          color: (isHighest || isSelected)
+                              ? AppColors.primary
+                              : AppColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _AnimatedBar extends StatefulWidget {
+  final double height;
+  final bool isHighest;
+  final bool isSelected;
+  final Widget child;
+
+  const _AnimatedBar({
+    required this.height,
+    required this.isHighest,
+    required this.isSelected,
+    required this.child,
+  });
+
+  @override
+  State<_AnimatedBar> createState() => _AnimatedBarState();
+}
+
+class _AnimatedBarState extends State<_AnimatedBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = widget.isHighest || widget.isSelected;
+
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          height: widget.height * _animation.value,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isActive
+                  ? [AppColors.primary, AppColors.primary.withOpacity(0.8)]
+                  : [
+                      AppColors.primary.withOpacity(0.3),
+                      AppColors.primary.withOpacity(0.15),
+                    ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: widget.isSelected
+                ? Border.all(
+                    color: AppColors.primary.withOpacity(0.5),
+                    width: 2,
+                  )
+                : null,
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(
+                        widget.isSelected ? 0.4 : 0.3,
+                      ),
+                      blurRadius: widget.isSelected ? 16 : 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: widget.child,
+        );
+      },
+    );
+  }
+}
+
+class _AnimatedProgressBar extends StatefulWidget {
+  final double progress;
+  final bool isHighest;
+  final bool isSelected;
+
+  const _AnimatedProgressBar({
+    required this.progress,
+    required this.isHighest,
+    required this.isSelected,
+  });
+
+  @override
+  State<_AnimatedProgressBar> createState() => _AnimatedProgressBarState();
+}
+
+class _AnimatedProgressBarState extends State<_AnimatedProgressBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = widget.isHighest || widget.isSelected;
+
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          height: widget.isSelected ? 24 : 20,
+          child: Stack(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(
+                    widget.isSelected ? 12 : 10,
+                  ),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: widget.progress * _animation.value,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isActive
+                          ? [
+                              AppColors.primary,
+                              AppColors.primary.withOpacity(0.85),
+                            ]
+                          : [
+                              AppColors.primary.withOpacity(0.5),
+                              AppColors.primary.withOpacity(0.3),
+                            ],
+                    ),
+                    borderRadius: BorderRadius.circular(
+                      widget.isSelected ? 12 : 10,
+                    ),
+                    border: widget.isSelected
+                        ? Border.all(
+                            color: AppColors.primary.withOpacity(0.5),
+                            width: 2,
+                          )
+                        : null,
+                    boxShadow: isActive
+                        ? [
+                            BoxShadow(
+                              color: AppColors.primary.withOpacity(
+                                widget.isSelected ? 0.35 : 0.25,
+                              ),
+                              blurRadius: widget.isSelected ? 12 : 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ChartContainer extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final Widget child;
+
+  const _ChartContainer({
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primary.withOpacity(0.1), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Text(
+                        subtitle,
+                        key: ValueKey(subtitle),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
+          ),
+          const SizedBox(height: 28),
+          SizedBox(height: 220, child: child),
+        ],
+      ),
+    );
+  }
+}
