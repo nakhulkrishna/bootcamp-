@@ -285,6 +285,207 @@ class _AddConsoleDialogState extends State<AddConsoleDialog> {
   }
 }
 
+
+class EditConsoleDialog extends StatefulWidget {
+  const EditConsoleDialog({
+    super.key,
+    required this.device,
+  });
+
+  final DeviceModel device;
+
+  @override
+  State<EditConsoleDialog> createState() => _EditConsoleDialogState();
+}
+
+class _EditConsoleDialogState extends State<EditConsoleDialog> {
+  late TextEditingController _nameController;
+  final TextEditingController _gameController = TextEditingController();
+
+  late List<String> _availableGames;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // ✅ Prefill data
+    _nameController = TextEditingController(text: widget.device.name);
+    _availableGames = List.from(widget.device.availableGames);
+  }
+
+  void _addGame() {
+    final game = _gameController.text.trim();
+    if (game.isEmpty) return;
+
+    if (_availableGames.contains(game)) return; // ✅ avoid duplicates
+
+    setState(() {
+      _availableGames.add(game);
+      _gameController.clear();
+    });
+  }
+
+  Future<void> _saveConsole() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() => _saving = true);
+
+final updatedDevice = widget.device.copyWith(
+  name: name,
+  availableGames: _availableGames,
+);
+
+context.read<DeviceProvider>().updateDevice(updatedDevice);
+
+    setState(() => _saving = false);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: SizedBox(
+        width: 420,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ✅ Title
+              const Text(
+                "Edit Console",
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ✅ Console name
+              _input(
+                controller: _nameController,
+                label: "Console Name",
+              ),
+
+              const SizedBox(height: 16),
+
+              // ✅ Add games
+              Row(
+                children: [
+                  Expanded(
+                    child: _input(
+                      controller: _gameController,
+                      label: "Add Game",
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _addGame,
+                    icon: const Icon(
+                      Icons.add_circle,
+                      color: AppColors.primary,
+                      size: 28,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // ✅ Games list
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _availableGames.map((game) {
+                  return Chip(
+                    label: Text(game),
+                    backgroundColor:
+                        AppColors.primary.withOpacity(0.15),
+                    deleteIcon: const Icon(Icons.close, size: 18),
+                    onDeleted: () {
+                      setState(() => _availableGames.remove(game));
+                    },
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ✅ Actions
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      "Cancel",
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: _saving ? null : _saveConsole,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 14,
+                      ),
+                    ),
+                    child: _saving
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            "Save Changes",
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _input({
+    required TextEditingController controller,
+    required String label,
+  }) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(color: AppColors.textPrimary),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        filled: true,
+        fillColor: AppColors.surfaceLight,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+}
+
 String formatRemainingTime(SessionModel session) {
   final duration = remaining(session);
 

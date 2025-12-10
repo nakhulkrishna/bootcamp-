@@ -44,7 +44,23 @@ class DeviceModel {
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
+
+  /// ✅ copyWith (for Edit / Updates)
+  DeviceModel copyWith({
+    String? id,
+    String? name,
+    DeviceStatus? status,
+    List<String>? availableGames,
+  }) {
+    return DeviceModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      status: status ?? this.status,
+      availableGames: availableGames ?? List.from(this.availableGames),
+    );
+  }
 }
+
 
 
 

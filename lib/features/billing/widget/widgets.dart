@@ -38,11 +38,11 @@ class SideBar extends StatelessWidget {
             label: "Reports",
             section: AppSection.reports,
           ),
-          NavItem(
-            icon: Icons.settings,
-            label: "Settings",
-            section: AppSection.settings,
-          ),
+          // NavItem(
+          //   icon: Icons.settings,
+          //   label: "Settings",
+          //   section: AppSection.settings,
+          // ),
         ],
       ),
     );
@@ -258,12 +258,20 @@ class _ScreenTimeChartState extends State<ScreenTimeChart> {
         children: data.entries.map((e) {
           final minutes = e.value.inMinutes;
 
-          final safeHeight = maxMinutes <= 0
-              ? 0.0
-              : (minutes / maxMinutes) * 180;
+         
 
           final isHighest = minutes == maxMinutes;
           final isSelected = selectedPeriod == e.key;
+        
+
+const double minBarHeight = 40;
+const double maxBarHeight = 200;
+
+final safeHeight = maxMinutes == 0
+    ? minBarHeight
+    : minBarHeight +
+        (minutes / maxMinutes) * (maxBarHeight - minBarHeight);
+
 
           return Expanded(
             child: GestureDetector(
@@ -294,7 +302,7 @@ class _ScreenTimeChartState extends State<ScreenTimeChart> {
                                     ? Colors.white
                                     : AppColors.textSecondary,
                                 fontWeight: FontWeight.w600,
-                                fontSize: isSelected ? 14 : 13,
+                                fontSize: isSelected ? 10 : 9,
                               ),
                             ),
                           ),
@@ -302,22 +310,25 @@ class _ScreenTimeChartState extends State<ScreenTimeChart> {
                       ),
 
                       const SizedBox(height: 12),
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: TextStyle(
-                       overflow: TextOverflow.ellipsis,
+           AnimatedDefaultTextStyle(
+  duration: const Duration(milliseconds: 200),
+  style: TextStyle(
+    color: isSelected
+        ? AppColors.primary
+        : AppColors.textMuted,
+    fontSize: isSelected ? 12 : 13,
+    fontWeight: FontWeight.w500,
+  ),
+  child: Text(
+    e.key,
+    maxLines: isSelected ? 2 : 1,
+    overflow: isSelected
+        ? TextOverflow.visible
+        : TextOverflow.ellipsis,
+    textAlign: TextAlign.center,
+  ),
+),
 
-                          color: isSelected
-                              ? AppColors.primary
-                              : AppColors.textMuted,
-                          fontSize: isSelected ? 12 : 13,
-                          
-                          fontWeight: isSelected
-                              ? FontWeight.w500
-                              : FontWeight.w500,
-                        ),
-                        child: Text(e.key, ),
-                      ),
                     ],
                   ),
                 ),

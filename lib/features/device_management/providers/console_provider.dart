@@ -52,6 +52,26 @@ class DeviceProvider extends ChangeNotifier {
   Future<void> setMaintenance(String id) {
     return FirebaseServiceConsoles.setMaintenance(id);
   }
+Future<void> updateDevice(DeviceModel device) async {
+  try {
+    _loading = true;
+    notifyListeners();
+
+    await FirebaseServiceConsoles.updateConsole(
+      device.id,
+      device.toMap(),
+    );
+
+    _error = null;
+  } catch (e) {
+    _error = e.toString();
+    rethrow;
+  } finally {
+    _loading = false;
+    notifyListeners();
+  }
+}
+
 
   @override
   void dispose() {

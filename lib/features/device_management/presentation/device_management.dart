@@ -141,7 +141,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
                         // _buildHeaderCell("Timer", flex: 2),
                         // _buildHeaderCell("Payment", flex: 2),
                         // _buildHeaderCell("Status", flex: 2),
-                        // _buildHeaderCell("Actions", flex: 2),
+                        _buildHeaderCell("Actions", flex: 2),
                       ],
                     ),
                   ),
@@ -191,7 +191,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
                                 // ),
                                 // _buildStatusCell(device.isPaid, isHovered),
                                 // SizedBox(width: 5),
-                                // _buildActionsCell(isHovered, device),
+                                _buildActionsCell(isHovered, device),
                               ],
                             ),
                           ),
@@ -430,42 +430,42 @@ class _DeviceScreenState extends State<DeviceScreen> {
   }
 
   Widget _buildActionsCell(bool isHovered, DeviceModel device) {
-    final isRunning = device.status == DeviceStatus.running;
+    // final isRunning = device.status == DeviceStatus.running;
 
     return Expanded(
       flex: 2,
       child: Row(
         children: [
-          // ▶️ START
-          _buildActionButton(
-            icon: Icons.play_arrow,
-            color: Colors.green,
-            isHovered: isHovered,
-            onTap: isRunning
-                ? null
-                : () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => StartSessionDialog(device: device),
-                    );
-                  },
-          ),
+          // // ▶️ START
+          // _buildActionButton(
+          //   icon: Icons.play_arrow,
+          //   color: Colors.green,
+          //   isHovered: isHovered,
+          //   onTap: isRunning
+          //       ? null
+          //       : () {
+          //           showDialog(
+          //             context: context,
+          //             builder: (_) => StartSessionDialog(device: device),
+          //           );
+          //         },
+          // ),
 
-          const SizedBox(width: 8),
+          // const SizedBox(width: 8),
 
-          // ⏹ STOP
-          _buildActionButton(
-            icon: Icons.stop,
-            color: Colors.red,
-            isHovered: isHovered,
-            // onTap: isRunning
-            //     ? () {
-            //         context
-            //             .read<DeviceProvider>()
-            //             .stopSession(device.id);
-            //       }
-            //     : null,
-          ),
+          // // ⏹ STOP
+          // _buildActionButton(
+          //   icon: Icons.stop,
+          //   color: Colors.red,
+          //   isHovered: isHovered,
+          //   // onTap: isRunning
+          //   //     ? () {
+          //   //         context
+          //   //             .read<DeviceProvider>()
+          //   //             .stopSession(device.id);
+          //   //       }
+          //   //     : null,
+          // ),
 
           const SizedBox(width: 8),
 
@@ -475,7 +475,11 @@ class _DeviceScreenState extends State<DeviceScreen> {
             color: AppColors.primary,
             isHovered: isHovered,
             onTap: () {
-              // Edit / maintenance dialog later
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => EditConsoleDialog(device: device),
+              );
             },
           ),
         ],
