@@ -356,6 +356,7 @@ class _SessionManagementState extends State<SessionManagement> {
                               await _autoStopSession(session);
                             } else {
                               if (mounted) {
+                                 await _autoStopSession(session);
                                 _showSessionEndedPopup(session);
                               }
                             }

@@ -82,7 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Expanded(child: PaymentsChart()),
                     ],
                   ),
-                    const GamingFooter(),
+                    // const GamingFooter(),
                 ],
               ),
             ),

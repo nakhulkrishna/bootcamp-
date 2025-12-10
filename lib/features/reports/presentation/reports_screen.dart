@@ -7,9 +7,9 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
-// import 'package:excel/excel.dart' as excel_pkg;
-// import 'dart:io';
-// import 'package:path_provider/path_provider.dart';
+import 'package:excel/excel.dart' as excel_pkg;
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -19,6 +19,197 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  Future<void> _exportToPDF(ReportsProvider reports) async {
+  final pdf = pw.Document();
+  
+  final totalRevenue = reports.totalRevenue;
+  final totalExpenses = reports.totalExpenses;
+  final netProfit = reports.netProfit;
+  final expenses = reports.expenses;
+  final monthlySummary = reports.getMonthlySummary();
+  final consoleRevenue = reports.getConsoleRevenue();
+
+  pdf.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: pw.EdgeInsets.all(32),
+      build: (pw.Context context) {
+        return [
+          // Header
+          pw.Container(
+            padding: pw.EdgeInsets.only(bottom: 20),
+            decoration: pw.BoxDecoration(
+              border: pw.Border(
+                bottom: pw.BorderSide(width: 2, color: PdfColors.purple),
+              ),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Gaming Center - Financial Report',
+                  style: pw.TextStyle(
+                    fontSize: 28,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.purple,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text(
+                  'Generated on: ${DateFormat('MMMM dd, yyyy').format(DateTime.now())}',
+                  style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 30),
+
+          // Summary Section
+          pw.Text(
+            'Financial Summary',
+            style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 15),
+          
+          pw.Container(
+            padding: pw.EdgeInsets.all(16),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.grey200,
+              borderRadius: pw.BorderRadius.circular(8),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+              children: [
+                _buildPdfSummaryItem('Total Revenue', '${totalRevenue.toStringAsFixed(2)}', PdfColors.green),
+                _buildPdfSummaryItem('Total Expenses', '${totalExpenses.toStringAsFixed(2)}', PdfColors.red),
+                _buildPdfSummaryItem('Net Profit', '${netProfit.toStringAsFixed(2)}', PdfColors.blue),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 30),
+
+          // Monthly Breakdown
+          pw.Text(
+            'Monthly Revenue & Expenses',
+            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 15),
+          
+          pw.Table.fromTextArray(
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+            headerDecoration: pw.BoxDecoration(color: PdfColors.purple),
+            cellAlignment: pw.Alignment.centerLeft,
+            cellPadding: pw.EdgeInsets.all(8),
+            border: pw.TableBorder.all(color: PdfColors.grey400),
+            headers: ['Month', 'Revenue', 'Expenses', 'Profit'],
+            data: List.generate(12, (i) {
+              final month = i + 1;
+              final data = monthlySummary[month]!;
+              final profit = data['revenue']! - data['expense']!;
+              
+              return [
+                DateFormat('MMMM').format(DateTime(0, month)),
+                '${data['revenue']!.toStringAsFixed(2)}',
+                '${data['expense']!.toStringAsFixed(2)}',
+                '${profit.toStringAsFixed(2)}',
+              ];
+            }),
+          ),
+          pw.SizedBox(height: 30),
+
+          // Console Revenue
+          if (consoleRevenue.isNotEmpty) ...[
+            pw.Text(
+              'Revenue by Console',
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 15),
+            
+            pw.Table.fromTextArray(
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+              headerDecoration: pw.BoxDecoration(color: PdfColors.purple),
+              cellAlignment: pw.Alignment.centerLeft,
+              cellPadding: pw.EdgeInsets.all(8),
+              border: pw.TableBorder.all(color: PdfColors.grey400),
+              headers: ['Console Name', 'Revenue'],
+              data: consoleRevenue.map((c) => [
+                c.deviceName,
+                '${c.revenue.toStringAsFixed(2)}',
+              ]).toList(),
+            ),
+            pw.SizedBox(height: 30),
+          ],
+
+          // Expense Details
+          pw.Text(
+            'Detailed Expenses',
+            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 15),
+          
+          pw.Table.fromTextArray(
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+            headerDecoration: pw.BoxDecoration(color: PdfColors.purple),
+            cellAlignment: pw.Alignment.centerLeft,
+            cellPadding: pw.EdgeInsets.all(8),
+            border: pw.TableBorder.all(color: PdfColors.grey400),
+            headers: ['Date', 'Category', 'Description', 'Amount'],
+            data: expenses.map((e) => [
+              DateFormat('dd MMM yyyy').format(e.date),
+              e.category,
+              e.description,
+              '${e.amount.toStringAsFixed(2)}',
+            ]).toList(),
+          ),
+          
+          // Footer
+          pw.SizedBox(height: 40),
+          pw.Divider(color: PdfColors.grey400),
+          pw.SizedBox(height: 10),
+          pw.Text(
+            'This report is system-generated and does not require a signature.',
+            style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600, fontStyle: pw.FontStyle.italic),
+          ),
+        ];
+      },
+    ),
+  );
+
+  await Printing.layoutPdf(
+    onLayout: (PdfPageFormat format) async => pdf.save(),
+  );
+  
+  // Show success message
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('PDF generated successfully'),
+        backgroundColor: Color(0xFF00B894),
+      ),
+    );
+  }
+}
+
+pw.Widget _buildPdfSummaryItem(String label, String value, PdfColor color) {
+  return pw.Column(
+    children: [
+      pw.Text(
+        label,
+        style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
+      ),
+      pw.SizedBox(height: 5),
+      pw.Text(
+        value,
+        style: pw.TextStyle(
+          fontSize: 16,
+          fontWeight: pw.FontWeight.bold,
+          color: color,
+        ),
+      ),
+    ],
+  );
+}
+
   @override
   void initState() {
     super.initState();
@@ -40,43 +231,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     'This Year',
   ];
 
-  // Sample data - Replace with your provider data
-  // final List<ExpenseEntry> expenses = [
-  //   ExpenseEntry(
-  //     date: DateTime.now().subtract(Duration(days: 5)),
-  //     category: 'Electricity',
-  //     amount: 1500,
-  //     description: 'Monthly bill',
-  //   ),
-  //   ExpenseEntry(
-  //     date: DateTime.now().subtract(Duration(days: 10)),
-  //     category: 'WiFi',
-  //     amount: 800,
-  //     description: 'Internet subscription',
-  //   ),
-  //   ExpenseEntry(
-  //     date: DateTime.now().subtract(Duration(days: 15)),
-  //     category: 'Console Maintenance',
-  //     amount: 2500,
-  //     description: 'PS5 controller repair',
-  //   ),
-  //   ExpenseEntry(
-  //     date: DateTime.now().subtract(Duration(days: 20)),
-  //     category: 'Rent',
-  //     amount: 15000,
-  //     description: 'Shop rent',
-  //   ),
-  // ];
-  // final List<Map<String, double>> monthlyData = [
-  //   {'revenue': 35000, 'expense': 18000},
-  //   {'revenue': 42000, 'expense': 19500},
-  //   {'revenue': 38000, 'expense': 21000},
-  //   {'revenue': 45000, 'expense': 19800},
-  //   {'revenue': 40000, 'expense': 22000},
-  //   {'revenue': 48000, 'expense': 20000},
-  // ];
-
-  // final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
 
   @override
   Widget build(BuildContext context) {
@@ -164,55 +318,57 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Reports & Analytics',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                letterSpacing: -0.5,
-              ),
+Widget _buildHeader() {
+  final reports = context.watch<ReportsProvider>();
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Reports & Analytics',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: -0.5,
             ),
-            SizedBox(height: 8),
-            Text(
-              'Financial overview and expense tracking',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white54,
-                fontWeight: FontWeight.w500,
-              ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Financial overview and expense tracking',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.white54,
+              fontWeight: FontWeight.w500,
             ),
-          ],
-        ),
-        Row(
-          children: [
-        
-            _buildActionButton(
-              icon: Icons.add,
-              label: 'Add Expense',
-              color: Color(0xFF6C5CE7),
-              onTap: () => _showAddExpenseDialog(),
-            ),
-            SizedBox(width: 12),
-            // _buildActionButton(
-            //   icon: Icons.download,
-            //   label: 'Export',
-            //   color: Color(0xFF00B894),
-            //   onTap: () => _showExportOptions(),
-            // ),
-          ],
-        ),
-      ],
-    );
-  }
-
+          ),
+        ],
+      ),
+      Row(
+        children: [
+          _buildActionButton(
+            icon: Icons.add,
+            label: 'Add Expense',
+            color: Color(0xFF6C5CE7),
+            onTap: () => _showAddExpenseDialog(),
+          ),
+          SizedBox(width: 12),
+          _buildActionButton(
+            icon: Icons.download,
+            label: 'Export',
+            color: Color(0xFF00B894),
+               onTap: () {
+   
+              _exportToPDF(reports);
+            },
+          ),
+        ],
+      ),
+    ],
+  );
+}
 
   Widget _buildActionButton({
     required IconData icon,
@@ -957,137 +1113,9 @@ Widget _buildConsoleProfitList() {
     ),
   );
 }
-  // void _showExportOptions() {
-  //   showDialog(
-  //     context: context,
-  //     builder: (context) => AlertDialog(
-  //       backgroundColor: Color(0xFF1A1F3A),
-  //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-  //       title: Text('Export Report', style: TextStyle(color: Colors.white)),
-  //       content: Column(
-  //         mainAxisSize: MainAxisSize.min,
-  //         children: [
-  //           ListTile(
-  //             leading: Icon(Icons.picture_as_pdf, color: Color(0xFFFF7675)),
-  //             title: Text(
-  //               'Export as PDF',
-  //               style: TextStyle(color: Colors.white),
-  //             ),
-  //             onTap: () {
-  //               Navigator.pop(context);
-  //               _exportToPDF();
-  //             },
-  //           ),
-  //           ListTile(
-  //             leading: Icon(Icons.table_chart, color: Color(0xFF00B894)),
-  //             title: Text(
-  //               'Export as Excel',
-  //               style: TextStyle(color: Colors.white),
-  //             ),
-  //             onTap: () {
-  //               Navigator.pop(context);
-  //               _exportToExcel();
-  //             },
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // Future<void> _exportToPDF() async {
-  //   final pdf = pw.Document();
-
-  //   pdf.addPage(
-  //     pw.Page(
-  //       build: (pw.Context context) {
-  //         return pw.Column(
-  //           crossAxisAlignment: pw.CrossAxisAlignment.start,
-  //           children: [
-  //             pw.Text(
-  //               'Gaming Center - Financial Report',
-  //               style: pw.TextStyle(
-  //                 fontSize: 24,
-  //                 fontWeight: pw.FontWeight.bold,
-  //               ),
-  //             ),
-  //             pw.SizedBox(height: 20),
-  //             pw.Text('Period: $selectedPeriod'),
-  //             pw.SizedBox(height: 20),
-  //             pw.Text('Revenue: ₹45,000', style: pw.TextStyle(fontSize: 16)),
-  //             pw.Text('Expenses: ₹19,800', style: pw.TextStyle(fontSize: 16)),
-  //             pw.Text(
-  //               'Net Profit: ₹25,200',
-  //               style: pw.TextStyle(
-  //                 fontSize: 16,
-  //                 fontWeight: pw.FontWeight.bold,
-  //               ),
-  //             ),
-  //             pw.SizedBox(height: 30),
-  //             pw.Text(
-  //               'Expense Details:',
-  //               style: pw.TextStyle(
-  //                 fontSize: 18,
-  //                 fontWeight: pw.FontWeight.bold,
-  //               ),
-  //             ),
-  //             pw.SizedBox(height: 10),
-  //             ...expenses.map(
-  //               (e) =>
-  //                   pw.Text('${e.category}: ₹${e.amount} - ${e.description}'),
-  //             ),
-  //           ],
-  //         );
-  //       },
-  //     ),
-  //   );
-
-  //   await Printing.layoutPdf(
-  //     onLayout: (PdfPageFormat format) async => pdf.save(),
-  //   );
-  // }
-
-  Future<void> _exportToExcel() async {
-    // var excel = excel_pkg.Excel.createExcel();
-    // var sheet = excel['Report'];
-
-    // // Headers
-    // sheet.appendRow(['Category', 'Amount', 'Description', 'Date']);
-
-    // // Data
-    // for (var expense in expenses) {
-    //   sheet.appendRow([
-    //     expense.category,
-    //     expense.amount,
-    //     expense.description,
-    //     DateFormat('yyyy-MM-dd').format(expense.date),
-    //   ]);
-    // }
-
-    // // Save file
-    // final directory = await getApplicationDocumentsDirectory();
-    // final file = File('${directory.path}/gaming_center_report.xlsx');
-    // await file.writeAsBytes(excel.encode()!);
-
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   SnackBar(content: Text('Excel file saved to ${file.path}')),
-    // );
-  }
 }
 
-// class ExpenseEntry {
-//   final DateTime date;
-//   final String category;
-//   final double amount;
-//   final String description;
 
-//   ExpenseEntry({
-//     required this.date,
-//     required this.category,
-//     required this.amount,
-//     required this.description,
-//   });
-// }
 
 class _Legend extends StatelessWidget {
   final String label;

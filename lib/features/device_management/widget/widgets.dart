@@ -317,7 +317,7 @@ Duration remaining(SessionModel s) {
 }
 
 class _StartSessionDialogState extends State<StartSessionDialog> {
-  int _duration = 1300; 
+  int _duration = 1800; 
   String? _game;
   String _paymentMethod = "GPay";
   bool _loading = false;
@@ -325,7 +325,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   
   // Pricing map
   final Map<int, int> _pricing = {
-    1300: 100, 
+    1800: 100, 
     3600: 150,  
     7200: 200,  
   };
@@ -459,7 +459,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                         Expanded(
                           child: _timeChip(
                             "30 min",
-                            1300,
+                            1800,
                             Icons.timer,
                             "100",
                           ),
