@@ -95,26 +95,27 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
           pw.SizedBox(height: 15),
           
-          pw.Table.fromTextArray(
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-            headerDecoration: pw.BoxDecoration(color: PdfColors.purple),
-            cellAlignment: pw.Alignment.centerLeft,
-            cellPadding: pw.EdgeInsets.all(8),
-            border: pw.TableBorder.all(color: PdfColors.grey400),
-            headers: ['Month', 'Revenue', 'Expenses', 'Profit'],
-            data: List.generate(12, (i) {
-              final month = i + 1;
-              final data = monthlySummary[month]!;
-              final profit = data['revenue']! - data['expense']!;
-              
-              return [
-                DateFormat('MMMM').format(DateTime(0, month)),
-                '${data['revenue']!.toStringAsFixed(2)}',
-                '${data['expense']!.toStringAsFixed(2)}',
-                '${profit.toStringAsFixed(2)}',
-              ];
-            }),
-          ),
+  // Monthly Breakdown section in PDF
+pw.Table.fromTextArray(
+  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+  headerDecoration: pw.BoxDecoration(color: PdfColors.purple),
+  cellAlignment: pw.Alignment.centerLeft,
+  cellPadding: pw.EdgeInsets.all(8),
+  border: pw.TableBorder.all(color: PdfColors.grey400),
+  headers: ['Month', 'Revenue', 'Expenses', 'Profit'],
+  data: List.generate(12, (i) {
+    final month = i + 1;
+    final data = monthlySummary[month]!; // Now this will work correctly
+    final profit = data['revenue']! - data['expense']!;
+    
+    return [
+      DateFormat('MMMM').format(DateTime(0, month)),
+      '₹${data['revenue']!.toStringAsFixed(2)}',
+      '₹${data['expense']!.toStringAsFixed(2)}',
+      '₹${profit.toStringAsFixed(2)}',
+    ];
+  }),
+),
           pw.SizedBox(height: 30),
 
           // Console Revenue
@@ -278,7 +279,7 @@ pw.Widget _buildPdfSummaryItem(String label, String value, PdfColor color) {
                       SizedBox(
                         width: 360,
                         height: 380,
-                        child: _buildExpensesList(reports.expenses),
+                        child: _buildExpensesList(reports.currentMonthExpenses),
                       ),
                       SizedBox(height: 24),
                       SizedBox(

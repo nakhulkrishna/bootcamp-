@@ -22,6 +22,9 @@ class SessionManagement extends StatefulWidget {
 }
 
 class _SessionManagementState extends State<SessionManagement> {
+  html.AudioElement? _webAudio;
+  bool _audioUnlocked = false;
+
   int? hoveredIndex;
 
   final Set<String> _alertedSessions = {};
@@ -41,35 +44,19 @@ class _SessionManagementState extends State<SessionManagement> {
     }
   }
 
-  void _playEndSound() {
-    if (!_audioEnabled) {
-      return;
-    }
+ void _playEndSound() {
+  if (!kIsWeb || !_audioUnlocked || _webAudio == null) return;
 
-    try {
-      if (kIsWeb) {
-        final audio = html.AudioElement();
-        final audioPath =
-            'assets/SOUNDS/short-digital-notification-alert-440353.mp3';
-
-        audio.src = audioPath;
-        audio.volume = 1.0;
-
-        audio.load();
-
-        audio.play().then((_) {}).catchError((error) {});
-
-        // Add event listeners to track audio playback
-        audio.onLoadedData.listen((_) {});
-
-        audio.onPlay.listen((_) {});
-
-        audio.onError.listen((event) {});
-      } else {}
-    } catch (e) {
-    
-    }
+  try {
+    _webAudio!
+      ..currentTime = 0
+      ..volume = 1.0
+      ..play();
+  } catch (e) {
+    debugPrint("❌ Play sound failed: $e");
   }
+}
+
 
   Future<void> _autoStopSession(SessionModel session) async {
     try {
@@ -306,7 +293,7 @@ class _SessionManagementState extends State<SessionManagement> {
                         _buildHeaderCell("Device", flex: 3),
                         _buildHeaderCell("Running Games", flex: 2),
                         _buildHeaderCell("Timer", flex: 2),
-                          _buildHeaderCell("Price", flex: 2),
+                        _buildHeaderCell("Price", flex: 2),
                         _buildHeaderCell("Payment", flex: 2),
                         _buildHeaderCell("Status", flex: 2),
                         _buildHeaderCell("Actions", flex: 2),
@@ -356,7 +343,7 @@ class _SessionManagementState extends State<SessionManagement> {
                               await _autoStopSession(session);
                             } else {
                               if (mounted) {
-                                 await _autoStopSession(session);
+                                await _autoStopSession(session);
                                 _showSessionEndedPopup(session);
                               }
                             }
@@ -398,8 +385,11 @@ class _SessionManagementState extends State<SessionManagement> {
                                           : "-",
                                       isHovered,
                                     ),
-                                     _buildPriceCell(session?.price ?? 0, isHovered),
-                                         SizedBox(width: 5),
+                                    _buildPriceCell(
+                                      session?.price ?? 0,
+                                      isHovered,
+                                    ),
+                                    SizedBox(width: 5),
                                     _buildPaymentCell(
                                       session?.paymentMethod ?? "-",
                                       isHovered,
@@ -528,48 +518,47 @@ class _SessionManagementState extends State<SessionManagement> {
       ),
     );
   }
-Widget _buildPriceCell(int price, bool isHovered) {
-  return Expanded(
-    flex: 2,
-    child: price > 0
-        ? Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: Colors.green.withOpacity(0.2),
-                width: 1,
+
+  Widget _buildPriceCell(int price, bool isHovered) {
+    return Expanded(
+      flex: 2,
+      child: price > 0
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: Colors.green.withOpacity(0.2),
+                  width: 1,
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.currency_rupee,
-                  color: Colors.green,
-                  size: 14,
-                ),
-                Text(
-                  price.toString(),
-                  style: const TextStyle(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.currency_rupee,
                     color: Colors.green,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                    size: 14,
                   ),
-                ),
-              ],
+                  Text(
+                    price.toString(),
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : Text(
+              "-",
+              style: TextStyle(color: AppColors.textMuted, fontSize: 14),
             ),
-          )
-        : Text(
-            "-",
-            style: TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 14,
-            ),
-          ),
-  );
-}
+    );
+  }
+
   Widget _buildGameCell(String game, bool isHovered) {
     final isFree = game.toLowerCase() == "free";
     return Expanded(
@@ -649,6 +638,26 @@ Widget _buildPriceCell(int price, bool isHovered) {
       ),
     );
   }
+
+void unlockAudioForWeb() {
+  if (!kIsWeb || _audioUnlocked) return;
+
+  _webAudio = html.AudioElement()
+    ..src = 'assets/SOUNDS/short-digital-notification-alert-440353.mp3'
+    ..volume = 0.0
+    ..preload = 'auto';
+
+  _webAudio!.play().then((_) {
+    _audioUnlocked = true;
+    _webAudio!.pause();
+    _webAudio!.currentTime = 0;
+    _webAudio!.volume = 1.0;
+    debugPrint("🔊 Web audio unlocked");
+  }).catchError((e) {
+    debugPrint("❌ Audio unlock failed: $e");
+  });
+}
+
 
   Widget _buildTimerCell(String time, bool isHovered) {
     final isActive = time != "-";
@@ -764,6 +773,8 @@ Widget _buildPriceCell(int price, bool isHovered) {
             onTap: isRunning
                 ? null
                 : () {
+                    unlockAudioForWeb(); // 🔓 unlock browser audio
+                    setState(() => _audioEnabled = true);
                     showDialog(
                       context: context,
                       builder: (_) => StartSessionDialog(device: device),
@@ -881,8 +892,7 @@ Widget _buildPriceCell(int price, bool isHovered) {
     if (session == null) return;
 
     int selectedMinutes = 30;
-final extraPrice =
-    SessionProvider.extendPricing[selectedMinutes] ?? 0;
+    final extraPrice = SessionProvider.extendPricing[selectedMinutes] ?? 0;
 
     showDialog(
       barrierColor: AppColors.background,

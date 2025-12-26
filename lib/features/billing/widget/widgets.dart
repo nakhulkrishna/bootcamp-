@@ -258,20 +258,16 @@ class _ScreenTimeChartState extends State<ScreenTimeChart> {
         children: data.entries.map((e) {
           final minutes = e.value.inMinutes;
 
-         
-
           final isHighest = minutes == maxMinutes;
           final isSelected = selectedPeriod == e.key;
-        
 
-const double minBarHeight = 40;
-const double maxBarHeight = 200;
+          const double minBarHeight = 40;
+          const double maxBarHeight = 200;
 
-final safeHeight = maxMinutes == 0
-    ? minBarHeight
-    : minBarHeight +
-        (minutes / maxMinutes) * (maxBarHeight - minBarHeight);
-
+          final safeHeight = maxMinutes == 0
+              ? minBarHeight
+              : minBarHeight +
+                    (minutes / maxMinutes) * (maxBarHeight - minBarHeight);
 
           return Expanded(
             child: GestureDetector(
@@ -310,25 +306,24 @@ final safeHeight = maxMinutes == 0
                       ),
 
                       const SizedBox(height: 12),
-           AnimatedDefaultTextStyle(
-  duration: const Duration(milliseconds: 200),
-  style: TextStyle(
-    color: isSelected
-        ? AppColors.primary
-        : AppColors.textMuted,
-    fontSize: isSelected ? 12 : 13,
-    fontWeight: FontWeight.w500,
-  ),
-  child: Text(
-    e.key,
-    maxLines: isSelected ? 2 : 1,
-    overflow: isSelected
-        ? TextOverflow.visible
-        : TextOverflow.ellipsis,
-    textAlign: TextAlign.center,
-  ),
-),
-
+                      AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 200),
+                        style: TextStyle(
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textMuted,
+                          fontSize: isSelected ? 12 : 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        child: Text(
+                          e.key,
+                          maxLines: isSelected ? 2 : 1,
+                          overflow: isSelected
+                              ? TextOverflow.visible
+                              : TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -349,17 +344,16 @@ class PaymentsChart extends StatefulWidget {
 }
 
 class _PaymentsChartState extends State<PaymentsChart> {
-  String? selectedDay;
+  DateTime? selectedDay;
 
   @override
   Widget build(BuildContext context) {
-    final raw = context.watch<ReportsProvider>().getDailyRevenue();
+    final raw =
+        context.watch<ReportsProvider>().getCurrentWeekDailyRevenue();
 
-    final data = {
-      for (var e in raw.entries) DateFormat('EEE').format(e.key): e.value,
-    };
+    final entries = raw.entries.toList();
 
-    if (data.isEmpty) {
+    if (entries.isEmpty) {
       return _ChartContainer(
         title: "Payments",
         subtitle: "No data yet",
@@ -380,20 +374,21 @@ class _PaymentsChartState extends State<PaymentsChart> {
       );
     }
 
-    final maxValue = data.values.fold<int>(
+    final maxValue = entries.fold<double>(
       0,
-      (max, v) => v.toInt() > max ? v.toInt() : max,
+      (max, e) => e.value > max ? e.value : max,
     );
 
-    final total = data.values.fold<int>(0, (sum, v) => sum + v.toInt());
+    final total =
+        entries.fold<double>(0, (sum, e) => sum + e.value);
 
     return _ChartContainer(
       title: "Payments",
       subtitle: selectedDay != null
-          ? "$selectedDay: ₹${data[selectedDay]}"
+          ? "${DateFormat('EEE d').format(selectedDay!)}: ₹${raw[selectedDay!]}"
           : "This week",
       trailing: Text(
-        "₹$total",
+        "₹${total.toInt()}",
         style: TextStyle(
           color: selectedDay != null
               ? AppColors.primary.withOpacity(0.6)
@@ -403,8 +398,9 @@ class _PaymentsChartState extends State<PaymentsChart> {
         ),
       ),
       child: Column(
-        children: data.entries.map((e) {
-          final percentage = (e.value / maxValue * 100).toInt();
+        children: entries.map((e) {
+          final percentage =
+              maxValue == 0 ? 0 : (e.value / maxValue * 100).toInt();
           final isHighest = e.value == maxValue;
           final isSelected = selectedDay == e.key;
 
@@ -436,14 +432,15 @@ class _PaymentsChartState extends State<PaymentsChart> {
                               ? FontWeight.w700
                               : FontWeight.w500,
                         ),
-                        child: Text(e.key),
+                        child: Text(
+                          DateFormat('EEE').format(e.key),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _AnimatedProgressBar(
                         progress: maxValue <= 0 ? 0 : e.value / maxValue,
-
                         isHighest: isHighest,
                         isSelected: isSelected,
                       ),
@@ -460,7 +457,10 @@ class _PaymentsChartState extends State<PaymentsChart> {
                           fontWeight: FontWeight.w600,
                           fontSize: isSelected ? 14 : 13,
                         ),
-                        child: Text("₹${e.value}", textAlign: TextAlign.right),
+                        child: Text(
+                          "₹${e.value.toInt()}",
+                          textAlign: TextAlign.right,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -475,12 +475,6 @@ class _PaymentsChartState extends State<PaymentsChart> {
                             ? AppColors.primary.withOpacity(0.15)
                             : AppColors.surface,
                         borderRadius: BorderRadius.circular(4),
-                        border: isSelected
-                            ? Border.all(
-                                color: AppColors.primary.withOpacity(0.3),
-                                width: 1,
-                              )
-                            : null,
                       ),
                       child: Text(
                         "$percentage%",
