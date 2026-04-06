@@ -1,15 +1,15 @@
-import 'dart:developer';
-
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:gaming_center/core/constants/images.dart';
-import 'dart:html' as html show AudioElement;
 import 'package:gaming_center/features/device_management/data/model.dart';
 import 'package:gaming_center/features/device_management/providers/console_provider.dart';
 import 'package:gaming_center/features/device_management/providers/session_provider.dart';
 import 'package:gaming_center/features/device_management/widget/widgets.dart';
-import 'package:gaming_center/shared/providers/console_provider.dart';
+import 'package:gaming_center/features/settings/providers/settings_provider.dart';
+import 'package:gaming_center/features/billing/widget/widgets.dart';
+import 'package:gaming_center/core/utils/web_notifications.dart';
+import 'package:gaming_center/core/utils/desktop_notifications.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/colors.dart';
@@ -22,41 +22,137 @@ class SessionManagement extends StatefulWidget {
 }
 
 class _SessionManagementState extends State<SessionManagement> {
-  html.AudioElement? _webAudio;
+  late AudioPlayer _audioPlayer; // For all platforms
+  late FlutterTts _flutterTts; // For dynamic voice announcements
   bool _audioUnlocked = false;
+  final WebNotifier _notifier = createWebNotifier();
+  bool _notificationsEnabled = false;
 
   int? hoveredIndex;
 
   final Set<String> _alertedSessions = {};
+  final Set<String> _endedDeviceAlerts =
+      {}; // Track devices that need attention
   bool _audioEnabled = false;
+  SessionProvider? _boundSessionProvider;
 
   @override
   void initState() {
     super.initState();
-    if (kIsWeb) {
-      Future.delayed(Duration(milliseconds: 500), () {
-        if (mounted) {
-          setState(() => _audioEnabled = true);
+    _audioPlayer = AudioPlayer();
+    _flutterTts = FlutterTts();
+    _audioEnabled = true; // Audio is handled by audioplayers now
+    DesktopNotifier.ensureInitialized();
+    if (kIsWeb && _notifier.isSupported) {
+      _notificationsEnabled = _notifier.isGranted;
+    }
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _boundSessionProvider = context.read<SessionProvider>();
+        _boundSessionProvider?.addListener(_checkSessionTimeouts);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _boundSessionProvider?.removeListener(_checkSessionTimeouts);
+    _audioPlayer.dispose();
+    _flutterTts.stop();
+    super.dispose();
+  }
+
+  void _checkSessionTimeouts() {
+    if (!mounted) return;
+    
+    final sessionsData = _boundSessionProvider?.sessions ?? [];
+    final consoles = context.read<DeviceProvider>().devices;
+
+    for (var session in sessionsData) {
+      if (session.endTime != null && 
+          session.remainingSeconds == 0 && 
+          !_alertedSessions.contains(session.id)) {
+            
+        _alertedSessions.add(session.id);
+
+        final device = consoles.cast<DeviceModel?>().firstWhere(
+          (d) => d?.id == session.deviceId, 
+          orElse: () => null
+        );
+        
+        if (device == null) continue;
+
+        _endedDeviceAlerts.add(device.id);
+
+        _playEndSound(device.name);
+        _notifySessionEnded(device.name, session.game);
+
+        if (session.isPaid) {
+          _autoStopSession(session);
+        } else {
+          _autoStopSession(session).then((_) {
+            if (mounted) _showSessionEndedPopup(session);
+          });
         }
-      });
-    } else {
-      _audioEnabled = true;
+        
+        if (mounted) setState(() {});
+      }
     }
   }
 
- void _playEndSound() {
-  if (!kIsWeb || !_audioUnlocked || _webAudio == null) return;
+  void _playEndSound(String deviceName) async {
+    try {
+      if (!_audioEnabled) return;
 
-  try {
-    _webAudio!
-      ..currentTime = 0
-      ..volume = 1.0
-      ..play();
-  } catch (e) {
-    debugPrint("❌ Play sound failed: $e");
+      // 1. Play the standard notification beep
+      await _audioPlayer.play(
+        AssetSource('SOUNDS/short-digital-notification-alert-440353.mp3'),
+      );
+
+      // 2. Wait briefly so the chime finishes cleanly
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      // 3. Announce the specific console name dynamically
+      await _flutterTts.setLanguage("en-GB");
+      await _flutterTts.setVolume(20.0);
+      await _flutterTts.setPitch(10.6); // Higher pitch for more energy
+      await _flutterTts.setSpeechRate(0.85); // Slightly faster pace
+      await _flutterTts.speak("$deviceName session is completed!");
+    } catch (e) {
+      debugPrint("❌ Play sound or TTS failed: $e");
+    }
   }
-}
 
+  void _notifySessionEnded(String deviceName, String gameName) {
+    final message = '$deviceName • $gameName time is over. Please confirm.';
+    if (kIsWeb) {
+      if (!_notifier.isSupported || !_notificationsEnabled) return;
+      _notifier.notify('Session Ended', message);
+    } else {
+      DesktopNotifier.notify(title: 'Session Ended', body: message);
+    }
+  }
+
+  void _clearAlert(String deviceId) {
+    if (mounted) {
+      setState(() {
+        _endedDeviceAlerts.remove(deviceId);
+      });
+    }
+  }
+
+  Future<void> _enableAlerts() async {
+    if (!kIsWeb) return;
+    unlockAudioForWeb();
+    final granted = await _notifier.requestPermission();
+    if (mounted) {
+      setState(() {
+        _notificationsEnabled = granted;
+        _audioEnabled = true;
+      });
+    }
+  }
 
   Future<void> _autoStopSession(SessionModel session) async {
     try {
@@ -69,403 +165,344 @@ class _SessionManagementState extends State<SessionManagement> {
     }
   }
 
-  // ✅ Enhanced sound playing with web support
-  void _playFallbackWebSound() {
-    if (kIsWeb) {
-      // You can use dart:html here as a fallback
-      // Add this import at top: import 'dart:html' as html;
-      // html.AudioElement()
-      //   ..src = 'assets/sounds/time_over.mp3'
-      //   ..autoplay = true
-      //   ..load();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final sessionsProvider = context.watch<SessionProvider>();
     final consoles = context.watch<DeviceProvider>();
+    final settings = context.watch<SettingsProvider>();
     final sessionsData = sessionsProvider.sessions;
     final deviceData = consoles.devices;
+    final warningSeconds = settings.settings.warningThreshold * 60;
+    final openSessions = sessionsData.where((s) => s.endTime == null).length;
+    final endingSoon = sessionsData
+        .where(
+          (s) =>
+              s.endTime != null &&
+              s.remainingSeconds > 0 &&
+              s.remainingSeconds <= warningSeconds,
+        )
+        .length;
     // final isLoading = consoleProvider.loading;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Playtime Management",
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-
-                  SizedBox(height: 5),
-                  if (kIsWeb) ...[
-                    const SizedBox(width: 12),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _audioEnabled
-                                ? Colors.green.withOpacity(0.1)
-                                : Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: _audioEnabled
-                                  ? Colors.green.withOpacity(0.3)
-                                  : Colors.orange.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _audioEnabled
-                                    ? Icons.volume_up
-                                    : Icons.volume_off,
-                                color: _audioEnabled
-                                    ? Colors.green
-                                    : Colors.orange,
-                                size: 14,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                _audioEnabled ? "Sound ON" : "Sound OFF",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: _audioEnabled
-                                      ? Colors.green
-                                      : Colors.orange,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _audioEnabled
-                                ? Colors.green.withOpacity(0.1)
-                                : Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: _audioEnabled
-                                  ? Colors.green.withOpacity(0.3)
-                                  : Colors.orange.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Icon(
-                              //   _audioEnabled
-                              //       ? Icons.volume_up
-                              //       : Icons.volume_off,
-                              //   color: _audioEnabled
-                              //       ? Colors.green
-                              //       : Colors.orange,
-                              //   size: 14,
-                              // ),
-                              const SizedBox(width: 4),
-                              Text(
-                                "${sessionsData.length} devices active",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: _audioEnabled
-                                      ? Colors.green
-                                      : Colors.orange,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+    return Container(
+      color: const Color(0xFFF3F4F6),
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Playtime Management",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.5,
+                      ),
                     ),
                   ],
-                ],
-              ),
-              GestureDetector(
-                onTap: () async {
-                  if (kIsWeb && !_audioEnabled) {
-                    setState(() => _audioEnabled = true);
-                  }
-
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (_) => const AddConsoleDialog(),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.add, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        "Add Device",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                ),
+                Row(
+                  children: [
+                    _buildTopStatusWidget(
+                      icon: _audioEnabled ? Icons.volume_up : Icons.volume_off,
+                      label: _audioEnabled ? "Sound On" : "Sound Off",
+                      color: _audioEnabled ? Colors.green : Colors.grey,
+                      onTap: () =>
+                          setState(() => _audioEnabled = !_audioEnabled),
+                    ),
+                    const SizedBox(width: 24),
+                    GestureDetector(
+                      onTap: () async {
+                        if (kIsWeb && !_audioUnlocked) {
+                          unlockAudioForWeb();
+                        }
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (_) => const AddConsoleDialog(),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add, color: Colors.white, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              "Add Device",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            Row(
+              children: [
+                Expanded(
+                  child: ReferenceStatCard(
+                    title: "Active Sessions",
+                    value: sessionsData.length.toString(),
+                    icon: Icons.play_circle_outline,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Table Container
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColors.primary.withOpacity(0.1),
-                  width: 1,
+                const SizedBox(width: 24),
+                Expanded(
+                  child: ReferenceStatCard(
+                    title: "Open Sessions",
+                    value: openSessions.toString(),
+                    icon: Icons.timer_outlined,
+                  ),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: ReferenceStatCard(
+                    title: "Ending Soon",
+                    value: endingSoon.toString(),
+                    icon: Icons.warning_amber_rounded,
                   ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Table Header
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 20,
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+
+            // Table Container
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
                     ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.05),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        topRight: Radius.circular(20),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Table Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 20,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.05),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          _buildHeaderCell("Device", flex: 3),
+                          _buildHeaderCell("Running Games", flex: 2),
+                          _buildHeaderCell("Timer", flex: 2),
+                          _buildHeaderCell("Price", flex: 2),
+                          _buildHeaderCell("Payment", flex: 2),
+                          _buildHeaderCell("Status", flex: 2),
+                          _buildHeaderCell("Actions", flex: 2),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        _buildHeaderCell("Device", flex: 3),
-                        _buildHeaderCell("Running Games", flex: 2),
-                        _buildHeaderCell("Timer", flex: 2),
-                        _buildHeaderCell("Price", flex: 2),
-                        _buildHeaderCell("Payment", flex: 2),
-                        _buildHeaderCell("Status", flex: 2),
-                        _buildHeaderCell("Actions", flex: 2),
-                      ],
+
+                    // Divider
+                    Container(
+                      height: 1,
+                      color: AppColors.primary.withValues(alpha: 0.1),
                     ),
-                  ),
 
-                  // Divider
-                  Container(
-                    height: 1,
-                    color: AppColors.primary.withOpacity(0.1),
-                  ),
+                    // Table Body
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(0),
+                        itemCount: deviceData.length,
+                        separatorBuilder: (context, index) => Container(
+                          height: 1,
+                          margin: const EdgeInsets.symmetric(horizontal: 24),
+                          color: AppColors.primary.withValues(alpha: 0.05),
+                        ),
+                        itemBuilder: (context, index) {
+                          final devicesData = deviceData[index];
 
-                  // Table Body
-                  Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.all(0),
-                      itemCount: deviceData.length,
-                      separatorBuilder: (context, index) => Container(
-                        height: 1,
-                        margin: const EdgeInsets.symmetric(horizontal: 24),
-                        color: AppColors.primary.withOpacity(0.05),
-                      ),
-                      itemBuilder: (context, index) {
-                        final devicesData = deviceData[index];
+                          final session = sessionsData
+                              .where((s) => s.deviceId == devicesData.id)
+                              .cast<SessionModel?>()
+                              .firstOrNull;
 
-                        final session = sessionsData
-                            .where((s) => s.deviceId == devicesData.id)
-                            .cast<SessionModel?>()
-                            .firstOrNull;
-                        // ✅ Check for session timeout
-                        if (session != null &&
-                            session.remainingSeconds == 0 &&
-                            !_alertedSessions.contains(session.id)) {
-                          _alertedSessions.add(session.id);
+                          final isAlertActive = _endedDeviceAlerts.contains(
+                            devicesData.id,
+                          );
+                          final isHovered = hoveredIndex == index;
 
-                          WidgetsBinding.instance.addPostFrameCallback((
-                            _,
-                          ) async {
-                            // ✅ Play sound FIRST
-                            _playEndSound();
-
-                            // Small delay so sound starts before dialog
-                            await Future.delayed(Duration(milliseconds: 300));
-
-                            if (session.isPaid) {
-                              await _autoStopSession(session);
-                            } else {
-                              if (mounted) {
-                                await _autoStopSession(session);
-                                _showSessionEndedPopup(session);
-                              }
-                            }
-                          });
-                        }
-
-                        final isHovered = hoveredIndex == index;
-
-                        return MouseRegion(
-                          onEnter: (_) => setState(() => hoveredIndex = index),
-                          onExit: (_) => setState(() => hoveredIndex = null),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 20,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isHovered
-                                  ? AppColors.primary.withOpacity(0.03)
-                                  : Colors.transparent,
-                            ),
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    _buildDeviceCell(
-                                      devicesData.name,
-                                      isHovered,
-                                    ),
-                                    _buildGameCell(
-                                      session?.game ?? "FREE",
-                                      isHovered,
-                                    ),
-                                    // _buildAvailableGamesCell(session.game),
-                                    _buildTimerCell(
-                                      session != null
-                                          ? formatRemainingTime(session)
-                                          : "-",
-                                      isHovered,
-                                    ),
-                                    _buildPriceCell(
-                                      session?.price ?? 0,
-                                      isHovered,
-                                    ),
-                                    SizedBox(width: 5),
-                                    _buildPaymentCell(
-                                      session?.paymentMethod ?? "-",
-                                      isHovered,
-                                    ),
-
-                                    _buildStatusCell(
-                                      session?.isPaid ?? false,
-                                      isHovered,
-                                      session,
-                                    ),
-
-                                    SizedBox(width: 5),
-                                    _buildActionsCell(
-                                      isHovered,
-                                      devicesData,
-                                      session,
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 10),
-                                if (session != null && !session.isPaid)
+                          return MouseRegion(
+                            onEnter: (_) =>
+                                setState(() => hoveredIndex = index),
+                            onExit: (_) => setState(() => hoveredIndex = null),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 20,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isAlertActive
+                                    ? Colors.red.withValues(
+                                        alpha: 0.05,
+                                      ) // Highlight for alerts
+                                    : isHovered
+                                    ? AppColors.primary.withValues(alpha: 0.03)
+                                    : Colors.transparent,
+                                border: isAlertActive
+                                    ? Border.all(
+                                        color: Colors.red.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                        width: 1,
+                                      )
+                                    : null,
+                              ),
+                              child: Column(
+                                children: [
                                   Row(
                                     children: [
-                                      Expanded(
-                                        child: Container(
-                                          padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                            color: Colors.orange.withOpacity(
-                                              0.1,
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.orange.withOpacity(
-                                                0.3,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.warning,
-                                                color: Colors.orange,
-                                                size: 18,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              const Expanded(
-                                                child: Text(
-                                                  "Payment is not yet completed. Kindly confirm payment before ending this session manually",
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.w500,
-                                                    color:
-                                                        AppColors.textPrimary,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                                      _buildDeviceCell(
+                                        devicesData.name,
+                                        isHovered,
+                                      ),
+                                      _buildGameCell(
+                                        devicesData.status ==
+                                                DeviceStatus.maintenance
+                                            ? "MAINTENANCE"
+                                            : (session?.game ?? "FREE"),
+                                        isHovered,
+                                      ),
+                                      // _buildAvailableGamesCell(session.game),
+                                      _buildTimerCell(
+                                        session != null
+                                            ? formatRemainingTime(session)
+                                            : "-",
+                                        isHovered,
+                                        session,
+                                      ),
+                                      _buildPriceCell(
+                                        session?.price ?? 0,
+                                        isHovered,
+                                      ),
+                                      SizedBox(width: 5),
+                                      _buildPaymentCell(
+                                        session?.paymentMethod ?? "-",
+                                        isHovered,
+                                      ),
+
+                                      _buildStatusCell(
+                                        session?.isPaid ?? false,
+                                        isHovered,
+                                        session,
+                                        devicesData.id,
+                                        devicesData.status,
+                                      ),
+
+                                      SizedBox(width: 5),
+                                      _buildActionsCell(
+                                        isHovered,
+                                        devicesData,
+                                        session,
                                       ),
                                     ],
                                   ),
-                              ],
+                                  SizedBox(height: 10),
+                                  if (session != null && !session.isPaid)
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              color: Colors.orange.withValues(
+                                                alpha: 0.1,
+                                              ),
+                                              border: Border.all(
+                                                color: Colors.orange.withValues(
+                                                  alpha: 0.3,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.warning,
+                                                  color: Colors.orange,
+                                                  size: 18,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                const Expanded(
+                                                  child: Text(
+                                                    "Payment is not yet completed. Kindly confirm payment before ending this session manually",
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      color:
+                                                          AppColors.textPrimary,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -485,6 +522,41 @@ class _SessionManagementState extends State<SessionManagement> {
     );
   }
 
+  Widget _buildTopStatusWidget({
+    required IconData icon,
+    required String label,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 16),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDeviceCell(String name, bool isHovered) {
     return Expanded(
       flex: 3,
@@ -495,8 +567,8 @@ class _SessionManagementState extends State<SessionManagement> {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: isHovered
-                  ? AppColors.primary.withOpacity(0.15)
-                  : AppColors.primary.withOpacity(0.1),
+                  ? AppColors.primary.withValues(alpha: 0.15)
+                  : AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -523,34 +595,46 @@ class _SessionManagementState extends State<SessionManagement> {
     return Expanded(
       flex: 2,
       child: price > 0
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: Colors.green.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.currency_rupee,
-                    color: Colors.green,
-                    size: 14,
+          ? Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                final currency = settings.settings.currencySymbol;
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
                   ),
-                  Text(
-                    price.toString(),
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: Colors.green.withValues(alpha: 0.2),
+                      width: 1,
                     ),
                   ),
-                ],
-              ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        currency,
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        price.toString(),
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             )
           : Text(
               "-",
@@ -569,13 +653,13 @@ class _SessionManagementState extends State<SessionManagement> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: isFree
-                  ? Colors.green.withOpacity(0.1)
-                  : AppColors.primary.withOpacity(0.08),
+                  ? Colors.green.withValues(alpha: 0.1)
+                  : AppColors.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isFree
-                    ? Colors.green.withOpacity(0.2)
-                    : AppColors.primary.withOpacity(0.15),
+                    ? Colors.green.withValues(alpha: 0.2)
+                    : AppColors.primary.withValues(alpha: 0.15),
                 width: 1,
               ),
             ),
@@ -593,104 +677,100 @@ class _SessionManagementState extends State<SessionManagement> {
     );
   }
 
-  Widget _buildAvailableGamesCell(List<String> games) {
-    return Expanded(
-      flex: 5,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: games.isEmpty
-            ? Text(
-                "No games",
-                style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              )
-            : Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: games.map((game) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: AppColors.primary.withOpacity(0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      game,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-      ),
-    );
+  void unlockAudioForWeb() {
+    if (!kIsWeb || _audioUnlocked) return;
+
+    // Play a silent sound to unlock the AudioContext on web
+    try {
+      _audioPlayer
+          .setSource(
+            AssetSource('SOUNDS/short-digital-notification-alert-440353.mp3'),
+          )
+          .then((_) {
+            _audioPlayer.setVolume(0.0);
+            _audioPlayer.resume().then((_) {
+              _audioPlayer.pause();
+              _audioPlayer.setVolume(1.0);
+              _audioUnlocked = true;
+              if (mounted) {
+                setState(() {});
+              }
+              debugPrint("🔊 Web audio unlocked via audioplayers");
+            });
+          });
+    } catch (e) {
+      debugPrint("❌ Unlock audio failed: $e");
+    }
   }
 
-void unlockAudioForWeb() {
-  if (!kIsWeb || _audioUnlocked) return;
+  Widget _buildTimerCell(String time, bool isHovered, SessionModel? session) {
+    final isActive = time != "-" && session != null;
+    double progress = 0.0;
+    if (isActive && session.duration > 0) {
+      progress =
+          (session.duration - session.remainingSeconds) / session.duration;
+      if (progress > 1.0) progress = 1.0;
+      if (progress < 0.0) progress = 0.0;
+    }
 
-  _webAudio = html.AudioElement()
-    ..src = 'assets/SOUNDS/short-digital-notification-alert-440353.mp3'
-    ..volume = 0.0
-    ..preload = 'auto';
-
-  _webAudio!.play().then((_) {
-    _audioUnlocked = true;
-    _webAudio!.pause();
-    _webAudio!.currentTime = 0;
-    _webAudio!.volume = 1.0;
-    debugPrint("🔊 Web audio unlocked");
-  }).catchError((e) {
-    debugPrint("❌ Audio unlock failed: $e");
-  });
-}
-
-
-  Widget _buildTimerCell(String time, bool isHovered) {
-    final isActive = time != "-";
     return Expanded(
       flex: 2,
-      child: Row(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isActive)
-            Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.withOpacity(0.5),
-                    blurRadius: 8,
-                    spreadRadius: 2,
+          Row(
+            children: [
+              if (isActive)
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: session.remainingSeconds < 300
+                        ? Colors.orange
+                        : Colors.red,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            (session.remainingSeconds < 300
+                                    ? Colors.orange
+                                    : Colors.red)
+                                .withValues(alpha: 0.5),
+                        blurRadius: 8,
+                        spreadRadius: 2,
+                      ),
+                    ],
                   ),
-                ],
+                ),
+              Text(
+                time,
+                style: TextStyle(
+                  color: isActive ? AppColors.textPrimary : AppColors.textMuted,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          if (isActive) ...[
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: AppColors.background,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  session.remainingSeconds < 300
+                      ? Colors.orange
+                      : AppColors.primary,
+                ),
+                minHeight: 4,
               ),
             ),
-          Text(
-            time,
-            style: TextStyle(
-              color: isActive ? AppColors.textPrimary : AppColors.textMuted,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -710,8 +790,48 @@ void unlockAudioForWeb() {
     );
   }
 
-  Widget _buildStatusCell(bool isPaid, bool isHovered, SessionModel? session) {
-    // log(isPaid.toString());
+  Widget _buildStatusCell(
+    bool isPaid,
+    bool isHovered,
+    SessionModel? session,
+    String deviceId,
+    DeviceStatus deviceStatus,
+  ) {
+    final bool isAlertActive = _endedDeviceAlerts.contains(deviceId);
+
+    if (isAlertActive) {
+      return Expanded(
+        flex: 2,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.red.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Colors.red.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 14),
+              const SizedBox(width: 6),
+              const Text(
+                "ALERT",
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Expanded(
       flex: 2,
       child: session?.status == SessionStatus.running
@@ -720,13 +840,13 @@ void unlockAudioForWeb() {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: isPaid
-                    ? Colors.green.withOpacity(isHovered ? 0.15 : 0.1)
-                    : Colors.orange.withOpacity(isHovered ? 0.15 : 0.1),
+                    ? Colors.green.withValues(alpha: isHovered ? 0.15 : 0.1)
+                    : Colors.orange.withValues(alpha: isHovered ? 0.15 : 0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isPaid
-                      ? Colors.green.withOpacity(0.3)
-                      : Colors.orange.withOpacity(0.3),
+                      ? Colors.green.withValues(alpha: 0.3)
+                      : Colors.orange.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -750,7 +870,34 @@ void unlockAudioForWeb() {
                 ],
               ),
             )
-          : SizedBox(),
+          : deviceStatus == DeviceStatus.maintenance
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.build, color: Colors.grey, size: 14),
+                  SizedBox(width: 6),
+                  Text(
+                    "Maintenance",
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : const SizedBox(),
     );
   }
 
@@ -760,83 +907,116 @@ void unlockAudioForWeb() {
     SessionModel? session,
   ) {
     final isRunning = session != null;
+    final bool isAlertActive = _endedDeviceAlerts.contains(device.id);
 
     return Expanded(
       flex: 2,
       child: Row(
         children: [
-          // ▶️ START
-          _buildActionButton(
-            icon: Icons.play_arrow,
-            color: Colors.green,
-            isHovered: isHovered,
-            onTap: isRunning
-                ? null
-                : () {
-                    unlockAudioForWeb(); // 🔓 unlock browser audio
-                    setState(() => _audioEnabled = true);
-                    showDialog(
-                      context: context,
-                      builder: (_) => StartSessionDialog(device: device),
-                    );
-                  },
-          ),
-
-          const SizedBox(width: 8),
-
-          // ⏹ STOP
-          _buildActionButton(
-            icon: Icons.stop,
-            color: Colors.red,
-            isHovered: isHovered,
-            onTap: isRunning
-                ? () {
-                    context.read<SessionProvider>().stopSession(
-                      sessionId: session.id,
-                      deviceId: device.id,
-                    );
-                  }
-                : null,
-          ),
-
-          const SizedBox(width: 8),
-
-          // ✏️ EDIT
-          PopupMenuButton<DeviceAction>(
-            color: AppColors.background,
-            tooltip: "More actions",
-            offset: const Offset(0, 40),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+          if (isAlertActive)
+            IconButton(
+              onPressed: () => _clearAlert(device.id),
+              tooltip: "Clear Alert",
+              icon: const Icon(
+                Icons.notifications_off_outlined,
+                color: Colors.red,
+                size: 20,
+              ),
             ),
-            itemBuilder: (_) => [
-              _menuItem(
-                value: DeviceAction.extend,
-                icon: Icons.timer,
-                text: "Extend Time",
-                color: Colors.blue,
-              ),
-              _menuItem(
-                value: DeviceAction.maintenance,
-                icon: Icons.build,
-                text: "Mark as Maintenance",
-                color: Colors.orange,
-              ),
+          PopupMenuButton<String>(
+            color: AppColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
+            ),
+            offset: const Offset(0, 40),
+            elevation: 8,
+            onSelected: (action) {
+              if (action == 'start') {
+                _clearAlert(device.id);
+                if (kIsWeb && (!_audioUnlocked || !_notificationsEnabled)) {
+                  _enableAlerts();
+                }
+                showDialog(
+                  context: context,
+                  builder: (_) => StartSessionDialog(device: device),
+                );
+              } else if (action == 'stop') {
+                context.read<SessionProvider>().stopSession(
+                  sessionId: session!.id,
+                  deviceId: device.id,
+                );
+              } else if (action == 'extend') {
+                _showExtendTimeDialog(session);
+              } else if (action == 'edit') {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => EditConsoleDialog(device: device),
+                );
+              } else if (action == 'maintenance') {
+                context.read<DeviceProvider>().setMaintenance(device.id);
+              } else if (action == 'free') {
+                context.read<DeviceProvider>().setFree(device.id);
+              } else if (action == 'delete') {
+                context.read<DeviceProvider>().deleteDevice(device.id);
+              }
+            },
+            itemBuilder: (context) => [
+              if (!isRunning && device.status != DeviceStatus.maintenance)
+                _buildPopupMenuItem(
+                  value: 'start',
+                  icon: Icons.play_arrow,
+                  label: 'Start Session',
+                  color: Colors.green,
+                ),
+              if (isRunning) ...[
+                _buildPopupMenuItem(
+                  value: 'stop',
+                  icon: Icons.stop,
+                  label: 'Stop Session',
+                  color: Colors.red,
+                ),
+                _buildPopupMenuItem(
+                  value: 'extend',
+                  icon: Icons.timer,
+                  label: 'Extend Time',
+                  color: Colors.blue,
+                ),
+              ],
               const PopupMenuDivider(),
-              _menuItem(
-                value: DeviceAction.delete,
+              _buildPopupMenuItem(
+                value: 'edit',
+                icon: Icons.edit,
+                label: 'Edit Console',
+                color: AppColors.primary,
+              ),
+              if (device.status == DeviceStatus.maintenance)
+                _buildPopupMenuItem(
+                  value: 'free',
+                  icon: Icons.check_circle,
+                  label: 'Available',
+                  color: Colors.green,
+                )
+              else
+                _buildPopupMenuItem(
+                  value: 'maintenance',
+                  icon: Icons.build,
+                  label: 'Maintenance',
+                  color: Colors.orange,
+                ),
+              _buildPopupMenuItem(
+                value: 'delete',
                 icon: Icons.delete,
-                text: "Delete Device",
+                label: 'Delete Device',
                 color: Colors.red,
               ),
             ],
-            onSelected: (value) {
-              _handleDeviceAction(value, device, session);
-            },
             child: _buildActionButton(
-              icon: Icons.edit,
-              color: AppColors.primary,
+              icon: Icons.more_vert,
+              color: AppColors.textSecondary,
               isHovered: isHovered,
+              onTap: null, // Tap handled by PopupMenuButton
             ),
           ),
         ],
@@ -844,22 +1024,30 @@ void unlockAudioForWeb() {
     );
   }
 
-  PopupMenuItem<DeviceAction> _menuItem({
-    required DeviceAction value,
+  PopupMenuItem<String> _buildPopupMenuItem({
+    required String value,
     required IconData icon,
-    required String text,
+    required String label,
     required Color color,
   }) {
-    return PopupMenuItem<DeviceAction>(
+    return PopupMenuItem<String>(
       value: value,
       child: Row(
         children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(width: 12),
           Text(
-            text,
+            label,
             style: const TextStyle(
               fontWeight: FontWeight.w600,
+              fontSize: 14,
               color: AppColors.textPrimary,
             ),
           ),
@@ -868,31 +1056,10 @@ void unlockAudioForWeb() {
     );
   }
 
-  void _handleDeviceAction(
-    DeviceAction action,
-    DeviceModel device,
-    SessionModel? session,
-  ) {
-    switch (action) {
-      case DeviceAction.extend:
-        _showExtendTimeDialog(session);
-        break;
-
-      case DeviceAction.maintenance:
-        context.read<DeviceProvider>().setMaintenance(device.id);
-        break;
-
-      case DeviceAction.delete:
-        context.read<DeviceProvider>().deleteDevice(device.id);
-        break;
-    }
-  }
-
   void _showExtendTimeDialog(SessionModel? session) {
     if (session == null) return;
 
     int selectedMinutes = 30;
-    final extraPrice = SessionProvider.extendPricing[selectedMinutes] ?? 0;
 
     showDialog(
       barrierColor: AppColors.background,
@@ -915,11 +1082,12 @@ void unlockAudioForWeb() {
                   children: [
                     // Header with gradient accent
                     Container(
+                      padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            AppColors.primary.withOpacity(0.05),
-                            AppColors.primary.withOpacity(0.02),
+                            AppColors.primary,
+                            AppColors.primary.withValues(alpha: 0.8),
                           ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
@@ -928,39 +1096,19 @@ void unlockAudioForWeb() {
                           topLeft: Radius.circular(24),
                           topRight: Radius.circular(24),
                         ),
-                        border: Border(
-                          bottom: BorderSide(
-                            color: AppColors.surface,
-                            width: 1,
-                          ),
-                        ),
                       ),
-                      padding: const EdgeInsets.all(24),
                       child: Row(
                         children: [
                           Container(
-                            width: 48,
-                            height: 48,
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.primary,
-                                  AppColors.primary.withBlue(255),
-                                ],
-                              ),
+                              color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primary.withOpacity(0.3),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
                             ),
                             child: const Icon(
-                              Icons.schedule,
+                              Icons.timer,
                               color: Colors.white,
-                              size: 24,
+                              size: 28,
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -973,15 +1121,17 @@ void unlockAudioForWeb() {
                                   style: TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.textPrimary,
+                                    color: Colors.white,
+                                    letterSpacing: -0.5,
                                   ),
                                 ),
-                                const SizedBox(height: 2),
+                                const SizedBox(height: 4),
                                 Text(
-                                  "Add extra play time",
+                                  "Add extra play time to ${session.deviceName}",
                                   style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.textSecondary,
+                                    fontSize: 14,
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
@@ -989,16 +1139,7 @@ void unlockAudioForWeb() {
                           ),
                           IconButton(
                             onPressed: () => Navigator.pop(context),
-                            icon: Icon(
-                              Icons.close,
-                              color: Colors.grey.shade400,
-                            ),
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.grey.shade50,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
+                            icon: const Icon(Icons.close, color: Colors.white),
                           ),
                         ],
                       ),
@@ -1016,13 +1157,15 @@ void unlockAudioForWeb() {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  AppColors.primary.withOpacity(0.08),
-                                  AppColors.primary.withOpacity(0.04),
+                                  AppColors.primary.withValues(alpha: 0.08),
+                                  AppColors.primary.withValues(alpha: 0.04),
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: AppColors.primary.withOpacity(0.15),
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.15,
+                                ),
                                 width: 1,
                               ),
                             ),
@@ -1043,8 +1186,7 @@ void unlockAudioForWeb() {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      session.deviceName + session.game ??
-                                          "Active Session",
+                                      "${session.deviceName} - ${session.game}",
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
@@ -1066,14 +1208,14 @@ void unlockAudioForWeb() {
                                       ),
                                     ),
                                     const SizedBox(height: 4),
-                                    // Text(
-                                    //   session.duration ?? "15 min",
-                                    //   style: const TextStyle(
-                                    //     fontSize: 16,
-                                    //     fontWeight: FontWeight.bold,
-                                    //     color: AppColors.primary,
-                                    //   ),
-                                    // ),
+                                    Text(
+                                      formatRemainingTime(session),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],
@@ -1106,13 +1248,15 @@ void unlockAudioForWeb() {
                               _timeOptionCard(
                                 label: "+30 min",
                                 value: 30,
+                                icon: Icons.timer_outlined,
                                 selectedValue: selectedMinutes,
                                 onTap: () =>
-                                    setState(() => selectedMinutes = 1),
+                                    setState(() => selectedMinutes = 30),
                               ),
                               _timeOptionCard(
                                 label: "+1 hour",
                                 value: 60,
+                                icon: Icons.add_circle_outline,
                                 selectedValue: selectedMinutes,
                                 onTap: () =>
                                     setState(() => selectedMinutes = 60),
@@ -1120,6 +1264,7 @@ void unlockAudioForWeb() {
                               _timeOptionCard(
                                 label: "+2 hours",
                                 value: 120,
+                                icon: Icons.add_circle_outline,
                                 selectedValue: selectedMinutes,
                                 onTap: () =>
                                     setState(() => selectedMinutes = 120),
@@ -1214,7 +1359,9 @@ void unlockAudioForWeb() {
                                 borderRadius: BorderRadius.circular(12),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppColors.primary.withOpacity(0.3),
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.3,
+                                    ),
                                     blurRadius: 12,
                                     offset: const Offset(0, 4),
                                   ),
@@ -1266,6 +1413,7 @@ void unlockAudioForWeb() {
   Widget _timeOptionCard({
     required String label,
     required int value,
+    required IconData icon,
     required int selectedValue,
     required VoidCallback onTap,
   }) {
@@ -1289,14 +1437,14 @@ void unlockAudioForWeb() {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
-                ? AppColors.primary.withOpacity(0.5)
+                ? AppColors.primary.withValues(alpha: 0.5)
                 : AppColors.surface,
-            width: isSelected ? 2 : 2,
+            width: 2,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: AppColors.primary.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -1311,23 +1459,23 @@ void unlockAudioForWeb() {
               height: 40,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppColors.surface
-                    : AppColors.primary.withOpacity(0.1),
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
-                isSelected ? Icons.check : Icons.add,
+                icon,
                 color: isSelected ? Colors.white : AppColors.primary,
                 size: 20,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
               label,
               style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
                 color: isSelected ? Colors.white : AppColors.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
               ),
             ),
           ],
@@ -1349,10 +1497,12 @@ void unlockAudioForWeb() {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isHovered ? color.withOpacity(0.15) : color.withOpacity(0.1),
+          color: isHovered
+              ? color.withValues(alpha: 0.15)
+              : color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: color.withOpacity(isHovered ? 0.3 : 0.2),
+            color: color.withValues(alpha: isHovered ? 0.3 : 0.2),
             width: 1,
           ),
         ),
@@ -1365,7 +1515,7 @@ void unlockAudioForWeb() {
     showDialog(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.4),
+      barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (_) {
         return Center(
           child: Container(
@@ -1375,7 +1525,7 @@ void unlockAudioForWeb() {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 24,
                   offset: const Offset(0, 12),
                 ),
@@ -1445,10 +1595,10 @@ void unlockAudioForWeb() {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
+                          color: Colors.orange.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.orange.withOpacity(0.3),
+                            color: Colors.orange.withValues(alpha: 0.3),
                           ),
                         ),
                         child: const Row(

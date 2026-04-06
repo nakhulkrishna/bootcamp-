@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:gaming_center/core/constants/colors.dart';
-import 'package:gaming_center/features/billing/widget/gaming_footer.dart';
 import 'package:gaming_center/features/billing/widget/widgets.dart';
+import 'package:gaming_center/core/utils/formatters.dart';
 import 'package:gaming_center/features/reports/provider/reports_provider.dart';
+import 'package:gaming_center/features/device_management/providers/session_provider.dart';
+import 'package:gaming_center/features/settings/providers/settings_provider.dart';
 import 'package:provider/provider.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final from = DateTime(now.year, 1, 1);
 
     Future.microtask(() {
+      if (!mounted) return;
       context.read<ReportsProvider>().loadReports(from: from, to: now);
     });
   }
@@ -29,65 +31,94 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final reports = context.watch<ReportsProvider>();
     return SingleChildScrollView(
-      child: Row(
-        children: [
-          // // ✅ Sidebar
-          // SideBar(),
-
-          // // ✅ Main Content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  // ✅ Stats cards
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 4,
-                    crossAxisSpacing: 50,
-                    mainAxisSpacing: 50,
-                    childAspectRatio: 2,
+      child: Container(
+        color: const Color(0xFFF3F4F6), // Match reference light grey background
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Consumer<SettingsProvider>(
+                builder: (context, settings, _) {
+                  final currency = settings.settings.currencySymbol;
+                  return Column(
                     children: [
-                      DashboardCard(
-                        title: "Total Revenue",
-                        value: "₹ ${reports.totalRevenue.toStringAsFixed(0)}",
-                        icon: Icons.trending_up,
-                      ),
-                      DashboardCard(
-                        title: "Today Revenue",
-                        value: "₹ ${reports.todayRevenue.toStringAsFixed(0)}",
-                        icon: Icons.today,
-                      ),
-                      DashboardCard(
-                        title: "Active Sessions",
-                        value: reports.activeSessions.toString(),
-                        icon: Icons.play_circle_fill,
-                      ),
-                      DashboardCard(
-                        title: "Net Profit",
-                        value: "₹ ${reports.netProfit.toStringAsFixed(0)}",
-                        icon: Icons.account_balance_wallet,
+                      // ✅ Top Alert Banner
+                      AlertBanner(revenue: formatMoney(reports.todayRevenue, currencySymbol: currency)),
+                      const SizedBox(height: 32),
+
+                      // ✅ Stats cards row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ReferenceStatCard(
+                              title: "Total Revenue",
+                              value: formatMoney(reports.totalRevenue, currencySymbol: currency),
+                              icon: Icons.receipt_long,
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            child: Consumer<SessionProvider>(
+                              builder: (context, sessionProvider, _) {
+                                return ReferenceStatCard(
+                                  title: "Active Sessions",
+                                  value: sessionProvider.sessions.length.toString(),
+                                  icon: Icons.people_outline,
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            child: ReferenceStatCard(
+                              title: "Completed Sessions",
+                              value: reports.completedSessionsToday.toString(),
+                              icon: Icons.check_circle_outline,
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            child: ReferenceStatCard(
+                              title: "Net Profit",
+                              value: formatMoney(reports.netProfit, currencySymbol: currency),
+                              icon: Icons.account_balance_wallet_outlined,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
 
-                  const SizedBox(height: 40),
-
-                  // ✅ Charts row
-                  Row(
-                    children: const [
-                      Expanded(child: ScreenTimeChart()),
-                      SizedBox(width: 32),
-                      Expanded(child: PaymentsChart()),
-                    ],
+              // ✅ Bottom Two Columns
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left Column: On Going Task (Recent Activity)
+                  const Expanded(
+                    flex: 12,
+                    child: ReferenceRecentActivityWidget(),
                   ),
-                    // const GamingFooter(),
+                  const SizedBox(width: 32),
+                  // Right Column: Charts
+                  Expanded(
+                    flex: 10,
+                    child: Column(
+                      children: const [
+                        PaymentsChart(),
+                        SizedBox(height: 32),
+                        ScreenTimeChart(),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:gaming_center/features/device_management/data/model.dart';
 import 'package:gaming_center/features/device_management/providers/console_provider.dart';
 import 'package:gaming_center/features/device_management/widget/widgets.dart';
-import 'package:gaming_center/shared/providers/console_provider.dart';
+import 'package:gaming_center/features/billing/widget/widgets.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/colors.dart';
@@ -22,83 +22,165 @@ class _DeviceScreenState extends State<DeviceScreen> {
   Widget build(BuildContext context) {
     final consoleProvider = context.watch<DeviceProvider>();
     final devices = consoleProvider.devices;
-    final isLoading = consoleProvider.loading;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Device Management",
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "${devices.length} devices active",
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textMuted,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (_) => const AddConsoleDialog(),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+    final totalDevices = devices.length;
+    final activeDevices =
+        devices.where((d) => d.status == DeviceStatus.running).length;
+    final maintenanceDevices =
+        devices.where((d) => d.status == DeviceStatus.maintenance).length;
+
+    return Container(
+      color: const Color(0xFFF3F4F6),
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Device Management",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.5,
                       ),
-                    ],
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.add, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        "Add Device",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "$totalDevices devices • $activeDevices active",
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (_) => const ManageGamesDialog(),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.2),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.sports_esports,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              "Manage Games",
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (_) => const AddConsoleDialog(),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add, color: Colors.white, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              "Add Device",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            Row(
+              children: [
+                Expanded(
+                  child: ReferenceStatCard(
+                    title: "Total Devices",
+                    value: totalDevices.toString(),
+                    icon: Icons.devices_other,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: ReferenceStatCard(
+                    title: "Active Devices",
+                    value: activeDevices.toString(),
+                    icon: Icons.play_circle_outline,
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: ReferenceStatCard(
+                    title: "Maintenance",
+                    value: maintenanceDevices.toString(),
+                    icon: Icons.build_circle_outlined,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
 
           // Table Container
           Expanded(
@@ -107,28 +189,28 @@ class _DeviceScreenState extends State<DeviceScreen> {
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColors.primary.withOpacity(0.1),
-                  width: 1,
-                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 20,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: Column(
-                children: [
-                  // Table Header
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                width: MediaQuery.of(context).size.width - 48,
+                  child: Column(
+                    children: [
+                      // Table Header
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
                       vertical: 20,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.05),
+                      color: AppColors.primary.withValues(alpha: 0.05),
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(20),
                         topRight: Radius.circular(20),
@@ -149,7 +231,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
                   // Divider
                   Container(
                     height: 1,
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                   ),
 
                   // Table Body
@@ -160,7 +242,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
                       separatorBuilder: (context, index) => Container(
                         height: 1,
                         margin: const EdgeInsets.symmetric(horizontal: 24),
-                        color: AppColors.primary.withOpacity(0.05),
+                        color: AppColors.primary.withValues(alpha: 0.05),
                       ),
                       itemBuilder: (context, index) {
                         final device = devices[index];
@@ -177,12 +259,12 @@ class _DeviceScreenState extends State<DeviceScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: isHovered
-                                  ? AppColors.primary.withOpacity(0.03)
+                                  ? AppColors.primary.withValues(alpha: 0.03)
                                   : Colors.transparent,
                             ),
                             child: Row(
                               children: [
-                                _buildDeviceCell(device.name, isHovered),
+                                _buildDeviceCell(device, isHovered),
                                 _buildAvailableGamesCell(device.availableGames),
                                 // _buildTimerCell(formatTimer(device), isHovered),
                                 // _buildPaymentCell(
@@ -199,11 +281,14 @@ class _DeviceScreenState extends State<DeviceScreen> {
                       },
                     ),
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -223,7 +308,24 @@ class _DeviceScreenState extends State<DeviceScreen> {
     );
   }
 
-  Widget _buildDeviceCell(String name, bool isHovered) {
+  Widget _buildDeviceCell(DeviceModel device, bool isHovered) {
+    IconData getIcon() {
+      switch (device.type) {
+        case DeviceType.ps5:
+        case DeviceType.ps4:
+          return Icons.videogame_asset;
+        case DeviceType.xboxSeriesX:
+        case DeviceType.xboxSeriesS:
+          return Icons.sports_esports;
+        case DeviceType.pc:
+          return Icons.computer;
+        case DeviceType.nintendoSwitch:
+          return Icons.videogame_asset_outlined;
+        default:
+          return Icons.videogame_asset;
+      }
+    }
+
     return Expanded(
       flex: 2,
       child: Row(
@@ -233,19 +335,19 @@ class _DeviceScreenState extends State<DeviceScreen> {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: isHovered
-                  ? AppColors.primary.withOpacity(0.15)
-                  : AppColors.primary.withOpacity(0.1),
+                  ? AppColors.primary.withValues(alpha: 0.15)
+                  : AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              Icons.videogame_asset,
+              getIcon(),
               color: AppColors.primary,
               size: 20,
             ),
           ),
           const SizedBox(width: 12),
           Text(
-            name,
+            device.name,
             style: TextStyle(
               color: AppColors.textPrimary,
               fontWeight: isHovered ? FontWeight.w600 : FontWeight.w500,
@@ -257,39 +359,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
     );
   }
 
-  Widget _buildGameCell(String game, bool isHovered) {
-    final isFree = game.toLowerCase() == "free";
-    return Expanded(
-      flex: 3,
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: isFree
-                  ? Colors.green.withOpacity(0.1)
-                  : AppColors.primary.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isFree
-                    ? Colors.green.withOpacity(0.2)
-                    : AppColors.primary.withOpacity(0.15),
-                width: 1,
-              ),
-            ),
-            child: Text(
-              game,
-              style: TextStyle(
-                color: isFree ? Colors.green : AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildAvailableGamesCell(List<String> games) {
     return Expanded(
@@ -315,10 +384,10 @@ class _DeviceScreenState extends State<DeviceScreen> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.10),
+                      color: AppColors.primary.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: AppColors.primary.withOpacity(0.2),
+                        color: AppColors.primary.withValues(alpha: 0.2),
                         width: 1,
                       ),
                     ),
@@ -337,97 +406,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
     );
   }
 
-  Widget _buildTimerCell(String time, bool isHovered) {
-    final isActive = time != "-";
-    return Expanded(
-      flex: 2,
-      child: Row(
-        children: [
-          if (isActive)
-            Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.withOpacity(0.5),
-                    blurRadius: 8,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-            ),
-          Text(
-            time,
-            style: TextStyle(
-              color: isActive ? AppColors.textPrimary : AppColors.textMuted,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPaymentCell(String method, bool isHovered) {
-    return Expanded(
-      flex: 2,
-      child: Text(
-        method,
-        style: TextStyle(
-          color: method == "-" ? AppColors.textMuted : AppColors.textSecondary,
-          fontWeight: FontWeight.w500,
-          fontSize: 14,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusCell(bool isPaid, bool isHovered) {
-    return Expanded(
-      flex: 2,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isPaid
-              ? Colors.green.withOpacity(isHovered ? 0.15 : 0.1)
-              : Colors.orange.withOpacity(isHovered ? 0.15 : 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isPaid
-                ? Colors.green.withOpacity(0.3)
-                : Colors.orange.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isPaid ? Icons.check_circle : Icons.schedule,
-              color: isPaid ? Colors.green : Colors.orange,
-              size: 16,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              isPaid ? "Paid" : "Pending",
-              style: TextStyle(
-                color: isPaid ? Colors.green : Colors.orange,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildActionsCell(bool isHovered, DeviceModel device) {
     // final isRunning = device.status == DeviceStatus.running;
@@ -500,10 +478,10 @@ class _DeviceScreenState extends State<DeviceScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isHovered ? color.withOpacity(0.15) : color.withOpacity(0.1),
+          color: isHovered ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: color.withOpacity(isHovered ? 0.3 : 0.2),
+            color: color.withValues(alpha: isHovered ? 0.3 : 0.2),
             width: 1,
           ),
         ),

@@ -16,14 +16,22 @@ class ReportsProvider extends ChangeNotifier {
 
   /// 💰 TOTAL REVENUE (PAID ONLY)
   double get totalRevenue {
-    return sessions
+    final sessionRevenue = sessions
         .where((s) => s.isPaid)
         .fold(0.0, (sum, s) => sum + s.price.toDouble());
+
+    final otherIncome = expenses
+        .where((e) => e.type == 'income')
+        .fold(0.0, (sum, e) => sum + e.amount);
+
+    return sessionRevenue + otherIncome;
   }
 
   /// 💸 TOTAL EXPENSE
   double get totalExpenses {
-    return expenses.fold(0.0, (sum, e) => sum + e.amount);
+    return expenses
+        .where((e) => e.type != 'income')
+        .fold(0.0, (sum, e) => sum + e.amount);
   }
 
   /// ✅ NET PROFIT
@@ -72,6 +80,7 @@ class ReportsProvider extends ChangeNotifier {
           category: category,
           amount: amount,
           description: description,
+          type: 'expense',
         ),
       );
     }
@@ -111,6 +120,32 @@ class ReportsProvider extends ChangeNotifier {
       ..sort((a, b) => b.revenue.compareTo(a.revenue));
   }
 
+  /* ───────────────────────── GAME REVENUE ───────────────────────── */
+
+  List<GameProfit> getGameRevenue() {
+    final Map<String, GameProfit> map = {};
+
+    for (final s in sessions) {
+      if (!s.isPaid) continue;
+
+      map.update(
+        s.game,
+        (existing) => GameProfit(
+          gameName: existing.gameName,
+          revenue: existing.revenue + s.price.toDouble(),
+        ),
+        ifAbsent: () => GameProfit(
+          gameName: s.game,
+          revenue: s.price.toDouble(),
+        ),
+      );
+    }
+
+    return map.values.toList()
+      ..sort((a, b) => b.revenue.compareTo(a.revenue));
+  }
+
+
   /* ───────────────────────── TODAY SCREEN TIME ───────────────────────── */
 
   Map<String, Duration> getTodayScreenTimePerConsole() {
@@ -126,8 +161,9 @@ class ReportsProvider extends ChangeNotifier {
       final sessionEnd =
           DateTime.fromMillisecondsSinceEpoch(s.endTime!);
 
-      if (sessionEnd.isBefore(startOfDay) ||
-          !sessionEnd.isBefore(endOfDay)) continue;
+      if (sessionEnd.isBefore(startOfDay) || !sessionEnd.isBefore(endOfDay)) {
+        continue;
+      }
 
       final sessionStart =
           DateTime.fromMillisecondsSinceEpoch(s.startTime);
@@ -149,7 +185,9 @@ class ReportsProvider extends ChangeNotifier {
 
     return expenses
         .where((e) =>
-            e.date.year == now.year && e.date.month == now.month)
+            e.type != 'income' &&
+            e.date.year == now.year &&
+            e.date.month == now.month)
         .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
   }
@@ -159,15 +197,24 @@ class ReportsProvider extends ChangeNotifier {
   Map<DateTime, double> getDailyRevenue() {
     final Map<DateTime, double> revenueByDate = {};
 
-    for (final s in sessions.where((e) => e.isPaid)) {
+    for (final s in sessions.where((e) => e.isPaid && e.endTime != null)) {
       final d =
-          DateTime.fromMillisecondsSinceEpoch(s.startTime);
+          DateTime.fromMillisecondsSinceEpoch(s.endTime!);
       final dateOnly = DateTime(d.year, d.month, d.day);
 
       revenueByDate.update(
         dateOnly,
         (value) => value + s.price.toDouble(),
         ifAbsent: () => s.price.toDouble(),
+      );
+    }
+
+    for (final e in expenses.where((e) => e.type == 'income')) {
+      final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+      revenueByDate.update(
+        dateOnly,
+        (value) => value + e.amount,
+        ifAbsent: () => e.amount,
       );
     }
 
@@ -192,9 +239,9 @@ class ReportsProvider extends ChangeNotifier {
     final weekStart = startOfWeek(now);
     final weekEnd = weekStart.add(const Duration(days: 7));
 
-    for (final s in sessions.where((e) => e.isPaid)) {
+    for (final s in sessions.where((e) => e.isPaid && e.endTime != null)) {
       final d =
-          DateTime.fromMillisecondsSinceEpoch(s.startTime);
+          DateTime.fromMillisecondsSinceEpoch(s.endTime!);
 
       if (d.isBefore(weekStart) || !d.isBefore(weekEnd)) continue;
 
@@ -219,31 +266,36 @@ class ReportsProvider extends ChangeNotifier {
   double get todayRevenue {
     final today = DateTime.now();
 
-    return sessions
+    final sessionRevenue = sessions
         .where((s) {
-          if (!s.isPaid) return false;
+          if (!s.isPaid || s.endTime == null) return false;
           final d =
-              DateTime.fromMillisecondsSinceEpoch(s.startTime);
+              DateTime.fromMillisecondsSinceEpoch(s.endTime!);
           return d.year == today.year &&
               d.month == today.month &&
               d.day == today.day;
         })
         .fold(0.0, (sum, s) => sum + s.price.toDouble());
+    final incomeToday = expenses
+        .where((e) =>
+            e.type == 'income' &&
+            e.date.year == today.year &&
+            e.date.month == today.month &&
+            e.date.day == today.day)
+        .fold(0.0, (sum, e) => sum + e.amount);
+
+    return sessionRevenue + incomeToday;
   }
 
-  int get activeSessions {
-    return sessions
-        .where((s) => s.status == SessionStatus.running)
-        .length;
-  }
+  // Removed activeSessions getter, use SessionProvider instead.
 
   int get completedSessionsToday {
     final today = DateTime.now();
 
     return sessions.where((s) {
-      if (s.status != SessionStatus.completed) return false;
+      if (s.status != SessionStatus.completed || s.endTime == null) return false;
       final d =
-          DateTime.fromMillisecondsSinceEpoch(s.startTime);
+          DateTime.fromMillisecondsSinceEpoch(s.endTime!);
       return d.year == today.year &&
           d.month == today.month &&
           d.day == today.day;
@@ -269,7 +321,11 @@ Map<int, Map<String, double>> getMonthlySummary() {
   // Process expenses
   for (final e in expenses) {
     final month = e.date.month;
-    expense[month] = (expense[month] ?? 0) + e.amount;
+    if (e.type == 'income') {
+      revenue[month] = (revenue[month] ?? 0) + e.amount;
+    } else {
+      expense[month] = (expense[month] ?? 0) + e.amount;
+    }
   }
 
   // Return all 12 months with default values

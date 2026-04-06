@@ -12,11 +12,11 @@ class GamingFooter extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.primary.withOpacity(0.15),
+          color: AppColors.primary.withValues(alpha: 0.15),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 24,
             offset: const Offset(0, 8),
           ),
@@ -34,8 +34,8 @@ class GamingFooter extends StatelessWidget {
               ),
               gradient: LinearGradient(
                 colors: [
-                  AppColors.primary.withOpacity(0.8),
-                  AppColors.primary.withOpacity(0.4),
+                  AppColors.primary.withValues(alpha: 0.8),
+                  AppColors.primary.withValues(alpha: 0.4),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -58,7 +58,7 @@ class GamingFooter extends StatelessWidget {
                       ),
                       gradient: LinearGradient(
                         colors: [
-                          Colors.black.withOpacity(0.3),
+                          Colors.black.withValues(alpha: 0.3),
                           Colors.transparent,
                         ],
                         begin: Alignment.bottomCenter,
@@ -75,11 +75,11 @@ class GamingFooter extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 16,
                             ),
                           ],
@@ -334,7 +334,7 @@ class _SocialIcon extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
+        color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(
@@ -375,16 +375,16 @@ class _StatusDotState extends State<_StatusDot>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (_, __) {
+      builder: (context, child) {
         return Container(
           width: 10,
           height: 10,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.green.withOpacity(0.6 + (_controller.value * 0.4)),
+            color: Colors.green.withValues(alpha: 0.6 + (_controller.value * 0.4)),
             boxShadow: [
               BoxShadow(
-                color: Colors.green.withOpacity(0.6),
+                color: Colors.green.withValues(alpha: 0.6),
                 blurRadius: 8,
                 spreadRadius: 1,
               ),

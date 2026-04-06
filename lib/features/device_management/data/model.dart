@@ -6,20 +6,28 @@ enum DeviceStatus {
   maintenance,
 }
 
-
-
-
+enum DeviceType {
+  ps5,
+  ps4,
+  xboxSeriesX,
+  xboxSeriesS,
+  pc,
+  nintendoSwitch,
+  other,
+}
 
 class DeviceModel {
   final String id;
   final String name;
   final DeviceStatus status;
+  final DeviceType type;
   final List<String> availableGames;
 
   DeviceModel({
     required this.id,
     required this.name,
     required this.status,
+    required this.type,
     required this.availableGames,
   });
 
@@ -30,7 +38,8 @@ class DeviceModel {
     return DeviceModel(
       id: doc.id,
       name: data['name'] ?? '',
-      status: DeviceStatus.values[data['status'] ?? 0],
+      status: DeviceStatus.values[(data['status'] as int?) ?? 0],
+      type: DeviceType.values[(data['type'] as int?) ?? DeviceType.other.index],
       availableGames: List<String>.from(data['availableGames'] ?? []),
     );
   }
@@ -40,6 +49,7 @@ class DeviceModel {
     return {
       'name': name,
       'status': status.index,
+      'type': type.index,
       'availableGames': availableGames,
       'updatedAt': FieldValue.serverTimestamp(),
     };
@@ -50,19 +60,18 @@ class DeviceModel {
     String? id,
     String? name,
     DeviceStatus? status,
+    DeviceType? type,
     List<String>? availableGames,
   }) {
     return DeviceModel(
       id: id ?? this.id,
       name: name ?? this.name,
       status: status ?? this.status,
+      type: type ?? this.type,
       availableGames: availableGames ?? List.from(this.availableGames),
     );
   }
 }
-
-
-
 
 enum SessionStatus { running, completed }
 
@@ -89,36 +98,31 @@ class SessionModel {
     required this.paymentMethod,
     required this.isPaid,
     required this.status,
-     required this.price,
+    required this.price,
     this.endTime,
   });
 
   /// 🔹 Firestore → Model
-factory SessionModel.fromFirestore(
-    DocumentSnapshot<Map<String, dynamic>> doc) {
-  final data = doc.data()!;
+  factory SessionModel.fromFirestore(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data()!;
 
-  return SessionModel(
-    id: doc.id,
-    deviceId: data['deviceId'] as String? ?? '',
-    deviceName: data['deviceName'] as String? ?? '',
-    game: data['game'] as String? ?? '',
-
-    // ✅ SAFE PARSING
-    startTime: (data['startTime'] as int?) ?? 0,
-    endTime: data['endTime'] as int?, // nullable is OK
-    duration: (data['duration'] as int?) ?? 0,
-
-    paymentMethod: data['paymentMethod'] as String? ?? '',
-    isPaid: data['isPaid'] ?? false,
-
-    status: data['status'] == 'completed'
-        ? SessionStatus.completed
-        : SessionStatus.running,
-        price: data['price'] ?? 0
-  );
-}
-
+    return SessionModel(
+      id: doc.id,
+      deviceId: data['deviceId'] as String? ?? '',
+      deviceName: data['deviceName'] as String? ?? '',
+      game: data['game'] as String? ?? '',
+      startTime: (data['startTime'] as int?) ?? 0,
+      endTime: data['endTime'] as int?,
+      duration: (data['duration'] as int?) ?? 0,
+      paymentMethod: data['paymentMethod'] as String? ?? '',
+      isPaid: data['isPaid'] ?? false,
+      status: data['status'] == 'completed'
+          ? SessionStatus.completed
+          : SessionStatus.running,
+      price: data['price'] ?? 0,
+    );
+  }
 
   /// 🔹 Model → Firestore
   Map<String, dynamic> toMap() {
@@ -131,33 +135,29 @@ factory SessionModel.fromFirestore(
       'duration': duration,
       'paymentMethod': paymentMethod,
       'isPaid': isPaid,
-      'status': status == SessionStatus.running
-          ? 'running'
-          : 'completed',
-          'price': price,
+      'status': status == SessionStatus.running ? 'running' : 'completed',
+      'price': price,
       'createdAt': FieldValue.serverTimestamp(),
     };
   }
 
   /// ✅ Remaining time (seconds)
-int get remainingSeconds {
-  if (status == SessionStatus.completed || endTime == null) return 0;
+  int get remainingSeconds {
+    if (status == SessionStatus.completed) return 0;
+    if (endTime == null) return -1; // -1 means open-ended session
 
-  final now = DateTime.now().millisecondsSinceEpoch;
-  final remaining = ((endTime! - now) ~/ 1000);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final remaining = ((endTime! - now) ~/ 1000);
 
-  return remaining > 0 ? remaining : 0;
-}
-
+    return remaining > 0 ? remaining : 0;
+  }
 
   /// ✅ Elapsed time (seconds)
-int get elapsedSeconds {
-  final now = endTime ??
-      DateTime.now().millisecondsSinceEpoch;
+  int get elapsedSeconds {
+    final now = endTime ?? DateTime.now().millisecondsSinceEpoch;
 
-  return ((now - startTime) ~/ 1000).clamp(0, duration);
-}
-
+    return ((now - startTime) ~/ 1000).clamp(0, duration);
+  }
 }
 
 enum DeviceAction {

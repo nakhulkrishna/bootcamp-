@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:gaming_center/features/reports/data/expenses_model.dart';
+import 'package:gaming_center/core/constants/colors.dart';
+import 'package:gaming_center/features/billing/widget/widgets.dart';
 import 'package:gaming_center/features/reports/provider/reports_provider.dart';
+import 'package:gaming_center/features/settings/providers/settings_provider.dart';
+import 'package:gaming_center/core/utils/formatters.dart';
+import 'package:gaming_center/app.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
-import 'package:excel/excel.dart' as excel_pkg;
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -25,7 +26,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   final totalRevenue = reports.totalRevenue;
   final totalExpenses = reports.totalExpenses;
   final netProfit = reports.netProfit;
-  final expenses = reports.expenses;
+  final expenses = reports.expenses.where((e) => e.type != 'income').toList();
+
   final monthlySummary = reports.getMonthlySummary();
   final consoleRevenue = reports.getConsoleRevenue();
 
@@ -80,9 +82,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
               children: [
-                _buildPdfSummaryItem('Total Revenue', '${totalRevenue.toStringAsFixed(2)}', PdfColors.green),
-                _buildPdfSummaryItem('Total Expenses', '${totalExpenses.toStringAsFixed(2)}', PdfColors.red),
-                _buildPdfSummaryItem('Net Profit', '${netProfit.toStringAsFixed(2)}', PdfColors.blue),
+                _buildPdfSummaryItem('Total Revenue', totalRevenue.toStringAsFixed(2), PdfColors.green),
+                _buildPdfSummaryItem('Total Expenses', totalExpenses.toStringAsFixed(2), PdfColors.red),
+                _buildPdfSummaryItem('Net Profit', netProfit.toStringAsFixed(2), PdfColors.blue),
               ],
             ),
           ),
@@ -96,7 +98,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           pw.SizedBox(height: 15),
           
   // Monthly Breakdown section in PDF
-pw.Table.fromTextArray(
+pw.TableHelper.fromTextArray(
   headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
   headerDecoration: pw.BoxDecoration(color: PdfColors.purple),
   cellAlignment: pw.Alignment.centerLeft,
@@ -126,7 +128,7 @@ pw.Table.fromTextArray(
             ),
             pw.SizedBox(height: 15),
             
-            pw.Table.fromTextArray(
+            pw.TableHelper.fromTextArray(
               headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
               headerDecoration: pw.BoxDecoration(color: PdfColors.purple),
               cellAlignment: pw.Alignment.centerLeft,
@@ -135,7 +137,7 @@ pw.Table.fromTextArray(
               headers: ['Console Name', 'Revenue'],
               data: consoleRevenue.map((c) => [
                 c.deviceName,
-                '${c.revenue.toStringAsFixed(2)}',
+                c.revenue.toStringAsFixed(2),
               ]).toList(),
             ),
             pw.SizedBox(height: 30),
@@ -148,7 +150,7 @@ pw.Table.fromTextArray(
           ),
           pw.SizedBox(height: 15),
           
-          pw.Table.fromTextArray(
+          pw.TableHelper.fromTextArray(
             headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
             headerDecoration: pw.BoxDecoration(color: PdfColors.purple),
             cellAlignment: pw.Alignment.centerLeft,
@@ -159,7 +161,7 @@ pw.Table.fromTextArray(
               DateFormat('dd MMM yyyy').format(e.date),
               e.category,
               e.description,
-              '${e.amount.toStringAsFixed(2)}',
+              e.amount.toStringAsFixed(2),
             ]).toList(),
           ),
           
@@ -219,6 +221,7 @@ pw.Widget _buildPdfSummaryItem(String label, String value, PdfColor color) {
     final from = DateTime(now.year, 1, 1);
 
     Future.microtask(() {
+      if (!mounted) return;
       context.read<ReportsProvider>().loadReports(from: from, to: now);
     });
   }
@@ -240,11 +243,11 @@ pw.Widget _buildPdfSummaryItem(String label, String value, PdfColor color) {
     final totalExpenses = reports.totalExpenses;
     final totalProfit = reports.netProfit;
 
-    return Scaffold(
-      backgroundColor: Color(0xFF0A0E27),
-      body: SingleChildScrollView(
+    return Container(
+      color: const Color(0xFFF3F4F6),
+      child: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -273,19 +276,19 @@ pw.Widget _buildPdfSummaryItem(String label, String value, PdfColor color) {
 
                   const SizedBox(width: 24),
 
-                  /// RIGHT – ACTIONABLE LIST
+                  /// RIGHT – INSIGHTS
                   Column(
                     children: [
                       SizedBox(
                         width: 360,
-                        height: 380,
-                        child: _buildExpensesList(reports.currentMonthExpenses),
-                      ),
+                        
+                        child: _buildConsoleProfitList()),
+
                       SizedBox(height: 24),
                       SizedBox(
                         width: 360,
-                        
-                        child: _buildConsoleProfitList()),
+                        child: _buildGameProfitList(),
+                      ),
                     ],
                   ),
                 ],
@@ -332,7 +335,7 @@ Widget _buildHeader() {
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppColors.textPrimary,
               letterSpacing: -0.5,
             ),
           ),
@@ -341,7 +344,7 @@ Widget _buildHeader() {
             'Financial overview and expense tracking',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white54,
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -350,16 +353,17 @@ Widget _buildHeader() {
       Row(
         children: [
           _buildActionButton(
-            icon: Icons.add,
-            label: 'Add Expense',
-            color: Color(0xFF6C5CE7),
-            onTap: () => _showAddExpenseDialog(),
+            icon: Icons.receipt_long,
+            label: 'Transactions',
+            color: AppColors.primary,
+            onTap: () =>
+                context.read<NavigationProvider>().setSection(AppSection.expenses),
           ),
           SizedBox(width: 12),
           _buildActionButton(
             icon: Icons.download,
             label: 'Export',
-            color: Color(0xFF00B894),
+            color: AppColors.success,
                onTap: () {
    
               _exportToPDF(reports);
@@ -386,7 +390,7 @@ Widget _buildHeader() {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.3),
+              color: color.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: Offset(0, 4),
             ),
@@ -411,138 +415,78 @@ Widget _buildHeader() {
   }
 
   Widget _buildSummaryCards(double revenue, double expenses, double profit) {
+      final currency = context.watch<SettingsProvider>().settings.currencySymbol;
     return Row(
       children: [
         Expanded(
-          child: _buildSummaryCard(
-            'Total Revenue',
-            '₹${revenue.toStringAsFixed(0)}',
-            Icons.trending_up,
-            Color(0xFF00B894),
-            '+12.5%',
+          child: ReferenceStatCard(
+            title: "Total Revenue",
+            value: formatMoney(revenue, currencySymbol: currency),
+            icon: Icons.trending_up,
           ),
         ),
-        SizedBox(width: 16),
+        SizedBox(width: 24),
         Expanded(
-          child: _buildSummaryCard(
-            'Total Expenses',
-            '₹${expenses.toStringAsFixed(0)}',
-            Icons.trending_down,
-            Color(0xFFFF7675),
-            '+8.3%',
+          child: ReferenceStatCard(
+            title: "Total Expenses",
+            value: formatMoney(expenses, currencySymbol: currency),
+            icon: Icons.trending_down,
           ),
         ),
-        SizedBox(width: 16),
+        SizedBox(width: 24),
         Expanded(
-          child: _buildSummaryCard(
-            'Net Profit',
-            '₹${profit.toStringAsFixed(0)}',
-            Icons.account_balance_wallet,
-            Color(0xFF6C5CE7),
-            profit > 0
-                ? '+${((profit / revenue) * 100).toStringAsFixed(1)}%'
-                : '0%',
+          child: ReferenceStatCard(
+            title: "Net Profit",
+            value: formatMoney(profit, currencySymbol: currency),
+            icon: Icons.account_balance_wallet_outlined,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSummaryCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-    String change,
-  ) {
-    return Container(
-      padding: EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Color(0xFF1A1F3A),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  change,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildProfitChart() {
     final reports = context.watch<ReportsProvider>();
-    final monthlySummary = reports.getMonthlySummary();
+    final revenueByDay = reports.getDailyRevenue();
+    final expenseByDay = _getDailyExpenses(reports);
 
-    // Convert map to list (Jan → Dec)
-    final months = List.generate(12, (i) => i + 1);
+    // Show last 14 days for a clearer daily view
+    final now = DateTime.now();
+    final days = List.generate(
+      14,
+      (i) => DateTime(now.year, now.month, now.day).subtract(Duration(days: 13 - i)),
+    );
 
-    final maxValue =
-        monthlySummary.values
-            .expand((e) => [e['revenue']!, e['expense']!])
-            .fold<double>(0, (a, b) => a > b ? a : b) *
-        1.2;
+    double maxValue = 0;
+    for (final d in days) {
+      final rev = revenueByDay[_dateOnly(d)] ?? 0;
+      final exp = expenseByDay[_dateOnly(d)] ?? 0;
+      if (rev > maxValue) maxValue = rev;
+      if (exp > maxValue) maxValue = exp;
+    }
+    maxValue = maxValue <= 0 ? 1000 : maxValue * 1.2;
 
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF6C5CE7).withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Monthly Revenue & Expense',
+            'Daily Revenue & Expenses (Last 14 Days)',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -552,30 +496,29 @@ Widget _buildHeader() {
           Expanded(
             child: BarChart(
               BarChartData(
-                maxY: maxValue <= 0 ? 1000 : maxValue,
-                barGroups: List.generate(months.length, (index) {
-                  final m = months[index];
-                  final data = monthlySummary[m]!;
+                maxY: maxValue,
+                barGroups: List.generate(days.length, (index) {
+                  final day = days[index];
+                  final key = _dateOnly(day);
+                  final revenue = revenueByDay[key] ?? 0;
+                  final expense = expenseByDay[key] ?? 0;
 
                   return BarChartGroupData(
                     x: index,
                     barsSpace: 6,
                     barRods: [
-                      /// ✅ REVENUE
                       BarChartRodData(
-                        toY: data['revenue']!,
-                        color: const Color(0xFF00B894),
-                        width: 14,
+                        toY: revenue,
+                        color: AppColors.success,
+                        width: 12,
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(6),
                         ),
                       ),
-
-                      /// ✅ EXPENSE
                       BarChartRodData(
-                        toY: data['expense']!,
-                        color: const Color(0xFFFF7675),
-                        width: 14,
+                        toY: expense,
+                        color: AppColors.error,
+                        width: 12,
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(6),
                         ),
@@ -587,16 +530,20 @@ Widget _buildHeader() {
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
+                      reservedSize: 28,
                       getTitlesWidget: (value, meta) {
-                        final month = DateFormat(
-                          'MMM',
-                        ).format(DateTime(0, value.toInt() + 1));
+                        final index = value.toInt();
+                        if (index < 0 || index >= days.length) {
+                          return const SizedBox.shrink();
+                        }
+                        final day = days[index];
+                        final label = DateFormat('d').format(day);
                         return Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            month,
+                            label,
                             style: const TextStyle(
-                              color: Colors.white54,
+                              color: AppColors.textMuted,
                               fontSize: 12,
                             ),
                           ),
@@ -610,7 +557,7 @@ Widget _buildHeader() {
                       reservedSize: 44,
                       getTitlesWidget: (value, _) => Text(
                         '₹${(value ~/ 1000)}k',
-                        style: const TextStyle(color: Colors.white54),
+                        style: const TextStyle(color: AppColors.textMuted),
                       ),
                     ),
                   ),
@@ -624,7 +571,7 @@ Widget _buildHeader() {
                 gridData: FlGridData(
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (value) =>
-                      FlLine(color: Colors.white10, strokeWidth: 1),
+                      FlLine(color: AppColors.border, strokeWidth: 1),
                 ),
                 borderData: FlBorderData(show: false),
               ),
@@ -646,45 +593,30 @@ Widget _buildHeader() {
     );
   }
 
-  BarChartGroupData _buildBarGroup(int x, double revenue, double expense) {
-    return BarChartGroupData(
-      x: x,
-      barRods: [
-        BarChartRodData(
-          toY: revenue,
-          color: Color(0xFF00B894),
-          width: 16,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
-        ),
-        BarChartRodData(
-          toY: expense,
-          color: Color(0xFFFF7675),
-          width: 16,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
-        ),
-      ],
-    );
+  DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  Map<DateTime, double> _getDailyExpenses(ReportsProvider reports) {
+    final Map<DateTime, double> expenseByDate = {};
+
+    for (final e in reports.expenses.where((e) => e.type != 'income')) {
+      final dateOnly = _dateOnly(e.date);
+      expenseByDate.update(
+        dateOnly,
+        (value) => value + e.amount,
+        ifAbsent: () => e.amount,
+      );
+    }
+
+    return expenseByDate;
   }
 
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        SizedBox(width: 8),
-        Text(label, style: TextStyle(color: Colors.white70, fontSize: 13)),
-      ],
-    );
-  }
 
   Widget _buildExpenseBreakdownChart() {
-    final expenses = context.watch<ReportsProvider>().expenses;
+    final expenses = context
+        .watch<ReportsProvider>()
+        .expenses
+        .where((e) => e.type != 'income')
+        .toList();
 
     // ✅ Group expenses by category
     final Map<String, double> grouped = {};
@@ -697,9 +629,15 @@ Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF6C5CE7).withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -707,7 +645,7 @@ Widget _buildHeader() {
           const Text(
             'Expense Breakdown',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -782,11 +720,11 @@ Widget _buildHeader() {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(color: Colors.white70, fontSize: 13)),
+            Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             Text(
               amount,
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -812,255 +750,28 @@ Widget _buildHeader() {
     }
   }
 
-  Widget _buildExpensesList(List<ExpenseEntry> expense) {
-    return Container(
-      padding: EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Color(0xFF1A1F3A),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Color(0xFF6C5CE7).withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Recent Expenses',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Icon(Icons.more_horiz, color: Colors.white54),
-            ],
-          ),
-          SizedBox(height: 20),
-          Expanded(
-            child: ListView.separated(
-              itemCount: expense.length,
-              separatorBuilder: (context, index) =>
-                  Divider(color: Colors.white10, height: 24),
-              itemBuilder: (context, index) {
-                final expenses = expense[index];
-                return _buildExpenseItem(expenses);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExpenseItem(ExpenseEntry expense) {
-    final categoryColors = {
-      'Electricity': Color(0xFFFF7675),
-      'WiFi': Color(0xFFFDCB6E),
-      'Console Maintenance': Color(0xFF00B894),
-      'Rent': Color(0xFF6C5CE7),
-    };
-
-    return Row(
-      children: [
-        Container(
-          padding: EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: (categoryColors[expense.category] ?? Color(0xFF6C5CE7))
-                .withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            _getCategoryIcon(expense.category),
-            color: categoryColors[expense.category] ?? Color(0xFF6C5CE7),
-            size: 20,
-          ),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                expense.category,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                expense.description,
-                style: TextStyle(color: Colors.white54, fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '₹${expense.amount.toStringAsFixed(0)}',
-              style: TextStyle(
-                color: Color(0xFFFF7675),
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              DateFormat('MMM dd').format(expense.date),
-              style: TextStyle(color: Colors.white54, fontSize: 11),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case 'Electricity':
-        return Icons.bolt;
-      case 'WiFi':
-        return Icons.wifi;
-      case 'Console Maintenance':
-        return Icons.build;
-      case 'Rent':
-        return Icons.home;
-      default:
-        return Icons.receipt;
-    }
-  }
-
-  void _showAddExpenseDialog() {
-    final categoryController = TextEditingController();
-    final amountController = TextEditingController();
-    final descriptionController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Color(0xFF1A1F3A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Add Expense', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: categoryController,
-              style: TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Category',
-                labelStyle: TextStyle(color: Colors.white54),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: Color(0xFF6C5CE7).withOpacity(0.3),
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF6C5CE7)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              style: TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Amount (₹)',
-                labelStyle: TextStyle(color: Colors.white54),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: Color(0xFF6C5CE7).withOpacity(0.3),
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF6C5CE7)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: descriptionController,
-              style: TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Description',
-                labelStyle: TextStyle(color: Colors.white54),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: Color(0xFF6C5CE7).withOpacity(0.3),
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF6C5CE7)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF6C5CE7),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () {
-              final category = categoryController.text.trim();
-              final amount = double.tryParse(amountController.text) ?? 0;
-              final description = descriptionController.text.trim();
-
-              if (category.isEmpty || amount <= 0) return;
-
-              context.read<ReportsProvider>().addExpense(
-                category: category,
-                amount: amount,
-                description: description,
-              );
-
-              Navigator.pop(context);
-            },
-
-            child: Text('Add Expense'),
-          ),
-        ],
-      ),
-    );
-  }
-
 Widget _buildConsoleProfitList() {
   final items = context.watch<ReportsProvider>().getConsoleRevenue();
   
   if (items.isEmpty) {
     return const Text(
       'No session data available',
-      style: TextStyle(color: Colors.white54),
+      style: TextStyle(color: AppColors.textMuted),
     );
   }
   
   return Container(
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
-      color: const Color(0xFF1A1F3A),
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Colors.white10),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.02),
+          blurRadius: 20,
+          offset: const Offset(0, 4),
+        ),
+      ],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1068,7 +779,7 @@ Widget _buildConsoleProfitList() {
         const Text(
           'Revenue by Console',
           style: TextStyle(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -1092,14 +803,17 @@ Widget _buildConsoleProfitList() {
                     Text(
                       c.deviceName,
                       style: const TextStyle(
-                        color: Colors.white70,
+                        color: AppColors.textSecondary,
                         fontSize: 14,
                       ),
                     ),
                     Text(
-                      '₹${c.revenue.toStringAsFixed(0)}',
+                      formatMoney(
+                        c.revenue,
+                        currencySymbol: context.read<SettingsProvider>().settings.currencySymbol,
+                      ),
                       style: const TextStyle(
-                        color: Color(0xFF00B894),
+                        color: AppColors.success,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1114,6 +828,81 @@ Widget _buildConsoleProfitList() {
     ),
   );
 }
+
+
+  Widget _buildGameProfitList() {
+    final reports = context.watch<ReportsProvider>();
+    final profits = reports.getGameRevenue();
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Revenue by Game',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (profits.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Text("No game data",
+                    style: TextStyle(color: AppColors.textSecondary)),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: profits.length > 5 ? 5 : profits.length,
+              separatorBuilder: (context, index) => const Divider(color: AppColors.border),
+              itemBuilder: (context, index) {
+                final p = profits[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(p.gameName,
+                          style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600)),
+                      Text(
+                        formatMoney(
+                          p.revenue,
+                          currencySymbol: context.read<SettingsProvider>().settings.currencySymbol,
+                        ),
+                        style: const TextStyle(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 
@@ -1140,7 +929,7 @@ class _Legend extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            color: Colors.white70,
+            color: AppColors.textSecondary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),

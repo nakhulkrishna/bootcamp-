@@ -29,18 +29,25 @@ environment:
 # versions available, run `flutter pub outdated`.
 dependencies:
   audioplayers: ^6.5.1
-  cloud_firestore: ^6.1.0
+  cloud_firestore: any
   cupertino_icons: ^1.0.8
   excel: ^4.0.6
-  firebase_core: ^4.2.1
+  flutter_local_notifications: ^21.0.0
+  firebase_core: any
   fl_chart: ^1.1.1
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
+  iconsax_flutter: ^1.0.1
   intl: ^0.20.2
   pdf: ^3.11.3
   printing: ^5.14.2
   provider: ^6.1.5+1
+  firebase_auth: any
+  google_sign_in: any
+  desktop_webview_auth: any
+  flutter_local_notifications_windows: ^3.0.0
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_lints: ^6.0.0

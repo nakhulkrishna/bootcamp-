@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:gaming_center/core/config/environment.dart';
 import 'package:gaming_center/features/device_management/domain/firebase_service_consoles.dart';
 import '../data/model.dart';
 
@@ -20,8 +21,9 @@ class DeviceProvider extends ChangeNotifier {
     _loading = true;
     notifyListeners();
 
+    _subscription?.cancel();
     _subscription = FirebaseFirestore.instance
-        .collection('devices')
+        .collection(EnvironmentConfig.collection('devices'))
         .snapshots()
         .listen(
       (snapshot) {
@@ -45,12 +47,20 @@ class DeviceProvider extends ChangeNotifier {
     return FirebaseServiceConsoles.addConsole(device);
   }
 
+  Future<void> bulkAddDevices(List<DeviceModel> devices) {
+    return FirebaseServiceConsoles.addConsolesBulk(devices);
+  }
+
   Future<void> deleteDevice(String id) {
     return FirebaseServiceConsoles.deleteConsole(id);
   }
 
   Future<void> setMaintenance(String id) {
     return FirebaseServiceConsoles.setMaintenance(id);
+  }
+
+  Future<void> setFree(String id) {
+    return FirebaseServiceConsoles.setFree(id);
   }
 Future<void> updateDevice(DeviceModel device) async {
   try {

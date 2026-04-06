@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:gaming_center/core/config/environment.dart';
 import 'package:gaming_center/features/device_management/data/model.dart';
 import 'package:gaming_center/features/reports/data/expenses_model.dart';
-import 'package:gaming_center/features/reports/presentation/reports_screen.dart' hide ExpenseEntry;
 
 
 class ReportsFirebaseService {
@@ -16,7 +16,7 @@ static Future<List<SessionModel>> fetchSessions({
   debugPrint('🔥 Fetching sessions from Firestore');
 
   final snapshot = await _db
-      .collection('sessions')
+      .collection(EnvironmentConfig.collection('sessions'))
       .where('isPaid', isEqualTo: true)
       .where('endTime', isGreaterThanOrEqualTo: from.millisecondsSinceEpoch)
       .where('endTime', isLessThanOrEqualTo: to.millisecondsSinceEpoch)
@@ -39,7 +39,7 @@ static Future<List<SessionModel>> fetchSessions({
     required DateTime to,
   }) async {
     final snapshot = await _db
-        .collection('expenses')
+        .collection(EnvironmentConfig.collection('expenses'))
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
         .where('date', isLessThanOrEqualTo: Timestamp.fromDate(to))
         .get();
@@ -52,11 +52,12 @@ static Future<List<SessionModel>> fetchSessions({
   required double amount,
   required String description,
 }) async {
-  await _db.collection('expenses').add({
+  await _db.collection(EnvironmentConfig.collection('expenses')).add({
     'category': category,
     'amount': amount,
     'description': description,
     'date': Timestamp.now(),
+    'type': 'expense',
   });
 }
 

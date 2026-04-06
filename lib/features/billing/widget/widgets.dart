@@ -2,92 +2,225 @@ import 'package:flutter/material.dart';
 import 'package:gaming_center/app.dart';
 import 'package:gaming_center/core/constants/colors.dart';
 import 'package:gaming_center/features/reports/provider/reports_provider.dart';
+import 'package:gaming_center/features/settings/providers/settings_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 
-class SideBar extends StatelessWidget {
-  const SideBar({super.key});
+// ─────────────────────────────────────────────────────
+// SLIM ICON-ONLY SIDEBAR (matching reference design)
+// ─────────────────────────────────────────────────────
+class SlimSidebar extends StatelessWidget {
+  const SlimSidebar({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 240,
-      color: AppColors.surface,
+      width: 72,
+      decoration: BoxDecoration(
+        color: AppColors.sidebarBg,
+        border: Border(
+          right: BorderSide(color: AppColors.border, width: 1),
+        ),
+      ),
       child: Column(
         children: [
-          const SizedBox(height: 55),
+          const SizedBox(height: 20),
+          // Logo
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.sidebarActive,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            clipBehavior: Clip.hardEdge,
+            child: Image.asset(
+              'assets/images/IMG_8532.PNG',
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(height: 28),
 
-          NavItem(
-            icon: Icons.dashboard,
-            label: "Dashboard",
+          // Nav icons
+          _NavIcon(
+            icon: Iconsax.home,
+            activeIcon: Iconsax.home,
             section: AppSection.dashboard,
+            tooltip: 'Dashboard',
           ),
-          NavItem(
-            icon: Icons.devices,
-            label: "Devices",
+          _NavIcon(
+            icon: Iconsax.monitor,
+            activeIcon: Iconsax.monitor,
             section: AppSection.devices,
+            tooltip: 'Devices',
           ),
-          NavItem(
-            icon: Icons.monitor,
-            label: "Sessions",
+          _NavIcon(
+            icon: Iconsax.play,
+            activeIcon: Iconsax.play,
             section: AppSection.sessions,
+            tooltip: 'Sessions',
           ),
+          if (context.watch<NavigationProvider>().role == UserRole.admin) ...[
+            _NavIcon(
+              icon: Iconsax.chart,
+              activeIcon: Iconsax.chart,
+              section: AppSection.reports,
+              tooltip: 'Reports',
+            ),
+            _NavIcon(
+              icon: Iconsax.wallet,
+              activeIcon: Iconsax.wallet,
+              section: AppSection.expenses,
+              tooltip: 'Expenses',
+            ),
+          ],
 
-          NavItem(
-            icon: Icons.bar_chart,
-            label: "Reports",
-            section: AppSection.reports,
-          ),
-          // NavItem(
-          //   icon: Icons.settings,
-          //   label: "Settings",
-          //   section: AppSection.settings,
-          // ),
+          const Spacer(),
+
+          // Bottom icon
+          if (context.watch<NavigationProvider>().role == UserRole.admin)
+            _NavIcon(
+              icon: Iconsax.setting,
+              activeIcon: Iconsax.setting,
+              section: AppSection.settings,
+              tooltip: 'Settings',
+            ),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 }
 
-class TopBar extends StatelessWidget {
-  const TopBar();
+class _NavIcon extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final AppSection section;
+  final String tooltip;
+
+  const _NavIcon({
+    required this.icon,
+    required this.activeIcon,
+    required this.section,
+    required this.tooltip,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: const [
-          Text(
-            "BOOTCAMP ",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+    final nav = context.watch<NavigationProvider>();
+    final bool isActive = nav.current == section;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Tooltip(
+        message: tooltip,
+        preferBelow: false,
+        child: InkWell(
+          onTap: () => context.read<NavigationProvider>().setSection(section),
+          borderRadius: BorderRadius.circular(14),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isActive ? AppColors.sidebarActive : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              isActive ? activeIcon : icon,
+              color: isActive
+                  ? AppColors.sidebarActiveText
+                  : AppColors.sidebarIcon,
+              size: 22,
             ),
           ),
-          CircleAvatar(
-            backgroundColor: AppColors.surfaceLight,
-            child: Icon(Icons.person, color: AppColors.icon),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class DashboardCard extends StatelessWidget {
+// ─────────────────────────────────────────────────────
+// TOP BAR
+// ─────────────────────────────────────────────────────
+class TopBar extends StatelessWidget {
+  const TopBar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final nav = context.watch<NavigationProvider>();
+    final title = _getTitleForSection(nav.current);
+
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          bottom: BorderSide(color: AppColors.border, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Breadcrumb
+          Row(
+            children: [
+              Icon(Iconsax.home,
+                  size: 18, color: AppColors.textMuted),
+              const SizedBox(width: 6),
+              Text(
+                '›',
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+        ],
+      ),
+    );
+  }
+
+  String _getTitleForSection(AppSection section) {
+    switch (section) {
+      case AppSection.dashboard:
+        return 'Dashboard';
+      case AppSection.devices:
+        return 'Devices';
+      case AppSection.sessions:
+        return 'Sessions';
+      case AppSection.reports:
+        return 'Reports';
+      case AppSection.expenses:
+        return 'Expenses';
+      case AppSection.settings:
+        return 'Settings';
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// REFERENCE STAT CARD (insightHub style)
+// ─────────────────────────────────────────────────────
+class ReferenceStatCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
 
-  const DashboardCard({
+  const ReferenceStatCard({
+    super.key,
     required this.title,
     required this.value,
     required this.icon,
@@ -96,30 +229,151 @@ class DashboardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.primary, size: 28),
-          const Spacer(),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Icon(
+                Icons.crop_free,
+                color: AppColors.border,
+                size: 16,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Icon(
+                  icon,
+                  color: AppColors.textPrimary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// ALERT BANNER
+// ─────────────────────────────────────────────────────
+class AlertBanner extends StatelessWidget {
+  final String revenue;
+  const AlertBanner({super.key, required this.revenue});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: AppColors.textPrimary,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.notifications_active,
+              color: Colors.white,
+              size: 20,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Dear Manager",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "We have observed a total revenue of $revenue generated today across all consoles.",
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            ),
+            onPressed: () {},
+            child: const Text(
+              "View Detail",
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -128,56 +382,9 @@ class DashboardCard extends StatelessWidget {
   }
 }
 
-class NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final AppSection section;
-
-  const NavItem({
-    required this.icon,
-    required this.label,
-    required this.section,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final nav = context.watch<NavigationProvider>();
-    final bool isActive = nav.current == section;
-
-    return InkWell(
-      onTap: () {
-        context.read<NavigationProvider>().setSection(section);
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isActive
-              ? AppColors.primary.withOpacity(0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isActive ? AppColors.primary : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                color: isActive ? AppColors.primary : AppColors.textSecondary,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+// ─────────────────────────────────────────────────────
+// UTILITY
+// ─────────────────────────────────────────────────────
 String formatDuration(Duration d) {
   final h = d.inHours;
   final m = d.inMinutes % 60;
@@ -187,6 +394,9 @@ String formatDuration(Duration d) {
   return '${m}m';
 }
 
+// ─────────────────────────────────────────────────────
+// SCREEN TIME TABLE (Blue & White)
+// ─────────────────────────────────────────────────────
 class ScreenTimeChart extends StatefulWidget {
   const ScreenTimeChart({super.key});
 
@@ -195,147 +405,197 @@ class ScreenTimeChart extends StatefulWidget {
 }
 
 class _ScreenTimeChartState extends State<ScreenTimeChart> {
-  String? selectedPeriod;
+  int _currentPage = 0;
+  static const int _itemsPerPage = 5;
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, Duration> data = context
-        .watch<ReportsProvider>()
-        .getTodayScreenTimePerConsole();
-    final maxMinutes = data.isEmpty
-        ? 1
-        : data.values.map((d) => d.inMinutes).reduce((a, b) => a > b ? a : b);
+    final Map<String, Duration> data =
+        context.watch<ReportsProvider>().getTodayScreenTimePerConsole();
 
+    final totalItems = data.length;
+    final totalPages = totalItems == 0 ? 1 : (totalItems / _itemsPerPage).ceil();
+    final paginatedData = data.entries.skip(_currentPage * _itemsPerPage).take(_itemsPerPage).toList();
+
+    // Calculate sum of all durations
     final totalDuration = Duration(
       minutes: data.values.fold(0, (sum, d) => sum + d.inMinutes),
     );
 
-    // final maxValue = data.isEmpty
-    //     ? 1.0
-    //     : data.values.every((v) => v == 0)
-    //         ? 1.0
-    //         : data.values.reduce((a, b) => a > b ? a : b);
-
-    // final totalHours = data.values.fold(0.0, (a, b) => a + b);
-    if (data.isEmpty || totalDuration.inMinutes == 0) {
-      return _ChartContainer(
-        title: "Screen Time",
-        subtitle: "No usage today",
-        trailing: const Text(
-          "0m",
-          style: TextStyle(
-            color: AppColors.textMuted,
-            fontWeight: FontWeight.w600,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-        ),
-        child: const Center(
-          child: Text(
-            "No screen time recorded",
-            style: TextStyle(color: AppColors.textMuted),
-          ),
-        ),
-      );
-    }
-
-    return _ChartContainer(
-      title: "Screen Time",
-      subtitle: selectedPeriod != null
-          ? "$selectedPeriod • ${formatDuration(data[selectedPeriod]!)}"
-          : "Today’s console usage",
-
-      trailing: Text(
-        "${formatDuration(totalDuration)} total",
-        style: TextStyle(
-          color: selectedPeriod != null
-              ? AppColors.primary.withOpacity(0.6)
-              : AppColors.primary,
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-        ),
+        ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: data.entries.map((e) {
-          final minutes = e.value.inMinutes;
-
-          final isHighest = minutes == maxMinutes;
-          final isSelected = selectedPeriod == e.key;
-
-          const double minBarHeight = 40;
-          const double maxBarHeight = 200;
-
-          final safeHeight = maxMinutes == 0
-              ? minBarHeight
-              : minBarHeight +
-                    (minutes / maxMinutes) * (maxBarHeight - minBarHeight);
-
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  selectedPeriod = isSelected ? null : e.key;
-                });
-              },
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              color: AppColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "Screen Time Usage",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      "Total: ${formatDuration(totalDuration)}",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              color: AppColors.primary.withValues(alpha: 0.05),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Text("Console", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                  Text("Total Time", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            if (data.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(40),
+                child: Center(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      _AnimatedBar(
-                        height: safeHeight,
-                        isHighest: isHighest, // ✅ CORRECT
-                        isSelected: isSelected,
-                        child: Center(
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 200),
-                            opacity: isSelected ? 1.0 : 0.85,
-                            child: Text(
-                              formatDuration(e.value),
-                              style: TextStyle(
-                                color: (isHighest || isSelected)
-                                    ? Colors.white
-                                    : AppColors.textSecondary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: isSelected ? 10 : 9,
+                      Icon(Iconsax.timer_1, color: AppColors.textMuted.withValues(alpha: 0.5), size: 32),
+                      const SizedBox(height: 12),
+                      const Text(
+                        "No screen time recorded today",
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else ...[
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: paginatedData.length,
+                itemBuilder: (context, index) {
+                  final entry = paginatedData[index];
+                  final isEven = index % 2 == 0;
+                  
+                  return Container(
+                    color: isEven ? Colors.white : AppColors.primary.withValues(alpha: 0.02),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Iconsax.game, size: 16, color: AppColors.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              entry.key,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w500,
                               ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryLight,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            formatDuration(entry.value),
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
                             ),
                           ),
                         ),
-                      ),
-
-                      const SizedBox(height: 12),
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: TextStyle(
-                          color: isSelected
-                              ? AppColors.primary
-                              : AppColors.textMuted,
-                          fontSize: isSelected ? 12 : 13,
-                          fontWeight: FontWeight.w500,
+                      ],
+                    ),
+                  );
+                },
+              ),
+              if (totalPages > 1)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton.icon(
+                        onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
+                        icon: const Icon(Iconsax.arrow_left_2, size: 18),
+                        label: const Text("Previous"),
+                        style: TextButton.styleFrom(
+                          disabledForegroundColor: AppColors.textMuted,
+                          foregroundColor: AppColors.primary,
                         ),
-                        child: Text(
-                          e.key,
-                          maxLines: isSelected ? 2 : 1,
-                          overflow: isSelected
-                              ? TextOverflow.visible
-                              : TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        "Page ${_currentPage + 1} of $totalPages",
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      ),
+                      TextButton(
+                        onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
+                        style: TextButton.styleFrom(
+                          disabledForegroundColor: AppColors.textMuted,
+                          foregroundColor: AppColors.primary,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Text("Next"),
+                            SizedBox(width: 4),
+                            Icon(Iconsax.arrow_right_3, size: 18),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
-          );
-        }).toList(),
+            ],
+          ],
+        ),
       ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────
+// PAYMENTS TABLE (Blue & White)
+// ─────────────────────────────────────────────────────
 class PaymentsChart extends StatefulWidget {
   const PaymentsChart({super.key});
 
@@ -344,380 +604,236 @@ class PaymentsChart extends StatefulWidget {
 }
 
 class _PaymentsChartState extends State<PaymentsChart> {
-  DateTime? selectedDay;
+  int _currentPage = 0;
+  static const int _itemsPerPage = 5;
 
   @override
   Widget build(BuildContext context) {
-    final raw =
-        context.watch<ReportsProvider>().getCurrentWeekDailyRevenue();
-
+    final raw = context.watch<ReportsProvider>().getCurrentWeekDailyRevenue();
     final entries = raw.entries.toList();
 
-    if (entries.isEmpty) {
-      return _ChartContainer(
-        title: "Payments",
-        subtitle: "No data yet",
-        trailing: const Text(
-          "₹0",
-          style: TextStyle(
-            color: AppColors.textMuted,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-        child: const Center(
-          child: Text(
-            "No payment data available",
-            style: TextStyle(color: AppColors.textMuted),
-          ),
-        ),
-      );
-    }
+    final totalItems = entries.length;
+    final totalPages = totalItems == 0 ? 1 : (totalItems / _itemsPerPage).ceil();
+    final paginatedEntries = entries.skip(_currentPage * _itemsPerPage).take(_itemsPerPage).toList();
 
-    final maxValue = entries.fold<double>(
-      0,
-      (max, e) => e.value > max ? e.value : max,
-    );
+    // Calculate total revenue
+    final totalRevenue = entries.fold<double>(0, (sum, e) => sum + e.value);
 
-    final total =
-        entries.fold<double>(0, (sum, e) => sum + e.value);
-
-    return _ChartContainer(
-      title: "Payments",
-      subtitle: selectedDay != null
-          ? "${DateFormat('EEE d').format(selectedDay!)}: ₹${raw[selectedDay!]}"
-          : "This week",
-      trailing: Text(
-        "₹${total.toInt()}",
-        style: TextStyle(
-          color: selectedDay != null
-              ? AppColors.primary.withOpacity(0.6)
-              : AppColors.primary,
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-        ),
-      ),
-      child: Column(
-        children: entries.map((e) {
-          final percentage =
-              maxValue == 0 ? 0 : (e.value / maxValue * 100).toInt();
-          final isHighest = e.value == maxValue;
-          final isSelected = selectedDay == e.key;
-
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                selectedDay = isSelected ? null : e.key;
-              });
-            },
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.only(bottom: 16),
-                transform: Matrix4.identity()
-                  ..translate(isSelected ? 4.0 : 0.0, 0.0),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 36,
-                      child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: TextStyle(
-                          color: isSelected
-                              ? AppColors.primary
-                              : AppColors.textMuted,
-                          fontSize: isSelected ? 14 : 13,
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                        child: Text(
-                          DateFormat('EEE').format(e.key),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _AnimatedProgressBar(
-                        progress: maxValue <= 0 ? 0 : e.value / maxValue,
-                        isHighest: isHighest,
-                        isSelected: isSelected,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 60,
-                      child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: TextStyle(
-                          color: (isHighest || isSelected)
-                              ? AppColors.primary
-                              : AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: isSelected ? 14 : 13,
-                        ),
-                        child: Text(
-                          "₹${e.value.toInt()}",
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (isHighest || isSelected)
-                            ? AppColors.primary.withOpacity(0.15)
-                            : AppColors.surface,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        "$percentage%",
-                        style: TextStyle(
-                          color: (isHighest || isSelected)
-                              ? AppColors.primary
-                              : AppColors.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-class _AnimatedBar extends StatefulWidget {
-  final double height;
-  final bool isHighest;
-  final bool isSelected;
-  final Widget child;
-
-  const _AnimatedBar({
-    required this.height,
-    required this.isHighest,
-    required this.isSelected,
-    required this.child,
-  });
-
-  @override
-  State<_AnimatedBar> createState() => _AnimatedBarState();
-}
-
-class _AnimatedBarState extends State<_AnimatedBar>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-    );
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = widget.isHighest || widget.isSelected;
-
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          height: widget.height * _animation.value,
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        final currency = settings.settings.currencySymbol;
+        return Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: isActive
-                  ? [AppColors.primary, AppColors.primary.withOpacity(0.8)]
-                  : [
-                      AppColors.primary.withOpacity(0.3),
-                      AppColors.primary.withOpacity(0.15),
-                    ],
-            ),
-            borderRadius: BorderRadius.circular(12),
-            border: widget.isSelected
-                ? Border.all(
-                    color: AppColors.primary.withOpacity(0.5),
-                    width: 2,
-                  )
-                : null,
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(
-                        widget.isSelected ? 0.4 : 0.3,
-                      ),
-                      blurRadius: widget.isSelected ? 16 : 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
-          ),
-          child: widget.child,
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedProgressBar extends StatefulWidget {
-  final double progress;
-  final bool isHighest;
-  final bool isSelected;
-
-  const _AnimatedProgressBar({
-    required this.progress,
-    required this.isHighest,
-    required this.isSelected,
-  });
-
-  @override
-  State<_AnimatedProgressBar> createState() => _AnimatedProgressBarState();
-}
-
-class _AnimatedProgressBarState extends State<_AnimatedProgressBar>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-    );
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = widget.isHighest || widget.isSelected;
-
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          height: widget.isSelected ? 24 : 20,
-          child: Stack(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(
-                    widget.isSelected ? 12 : 10,
-                  ),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: widget.progress * _animation.value,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isActive
-                          ? [
-                              AppColors.primary,
-                              AppColors.primary.withOpacity(0.85),
-                            ]
-                          : [
-                              AppColors.primary.withOpacity(0.5),
-                              AppColors.primary.withOpacity(0.3),
-                            ],
-                    ),
-                    borderRadius: BorderRadius.circular(
-                      widget.isSelected ? 12 : 10,
-                    ),
-                    border: widget.isSelected
-                        ? Border.all(
-                            color: AppColors.primary.withOpacity(0.5),
-                            width: 2,
-                          )
-                        : null,
-                    boxShadow: isActive
-                        ? [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(
-                                widget.isSelected ? 0.35 : 0.25,
-                              ),
-                              blurRadius: widget.isSelected ? 12 : 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : null,
-                  ),
-                ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  color: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Weekly Payments Overview",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          "Total: $currency${totalRevenue.toInt()}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  color: AppColors.primary.withValues(alpha: 0.05),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const [
+                      Text("Day", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                      Text("Revenue", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+                if (entries.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(40),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Iconsax.receipt_2_1, color: AppColors.textMuted.withValues(alpha: 0.5), size: 32),
+                          const SizedBox(height: 12),
+                          const Text(
+                            "No payment data available",
+                            style: TextStyle(color: AppColors.textMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else ...[
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: paginatedEntries.length,
+                    itemBuilder: (context, index) {
+                      final entry = paginatedEntries[index];
+                      final isEven = index % 2 == 0;
+                      
+                      return Container(
+                        color: isEven ? Colors.white : AppColors.primary.withValues(alpha: 0.02),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Iconsax.calendar_1, size: 16, color: AppColors.primary),
+                                const SizedBox(width: 8),
+                                Text(
+                                  DateFormat('EEEE, MMM d').format(entry.key),
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryLight,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                "$currency${entry.value.toInt()}",
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  if (totalPages > 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TextButton.icon(
+                            onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
+                            icon: const Icon(Iconsax.arrow_left_2, size: 18),
+                            label: const Text("Previous"),
+                            style: TextButton.styleFrom(
+                              disabledForegroundColor: AppColors.textMuted,
+                              foregroundColor: AppColors.primary,
+                            ),
+                          ),
+                          Text(
+                            "Page ${_currentPage + 1} of $totalPages",
+                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          ),
+                          TextButton(
+                            onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
+                            style: TextButton.styleFrom(
+                              disabledForegroundColor: AppColors.textMuted,
+                              foregroundColor: AppColors.primary,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Text("Next"),
+                                SizedBox(width: 4),
+                                Icon(Iconsax.arrow_right_3, size: 18),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
         );
       },
     );
   }
 }
 
-class _ChartContainer extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final Widget? trailing;
-  final Widget child;
+// ─────────────────────────────────────────────────────
+// RECENT ACTIVITY WIDGET
+// ─────────────────────────────────────────────────────
+class ReferenceRecentActivityWidget extends StatefulWidget {
+  const ReferenceRecentActivityWidget({super.key});
 
-  const _ChartContainer({
-    required this.title,
-    required this.subtitle,
-    this.trailing,
-    required this.child,
-  });
+  @override
+  State<ReferenceRecentActivityWidget> createState() => _ReferenceRecentActivityWidgetState();
+}
+
+class _ReferenceRecentActivityWidgetState extends State<ReferenceRecentActivityWidget> {
+  int _currentPage = 0;
+  static const int _itemsPerPage = 5;
 
   @override
   Widget build(BuildContext context) {
+    final reports = context.watch<ReportsProvider>();
+    final List<dynamic> allSessions = List.from(reports.sessions);
+    
+    allSessions.sort((a, b) {
+      if (a.endTime == null && b.endTime == null) return 0;
+      if (a.endTime == null) return 1;
+      if (b.endTime == null) return -1;
+      return (b.endTime as int).compareTo(a.endTime as int);
+    });
+
+    final totalItems = allSessions.length;
+    final totalPages = totalItems == 0 ? 1 : (totalItems / _itemsPerPage).ceil();
+    final paginatedSessions = allSessions.skip(_currentPage * _itemsPerPage).take(_itemsPerPage).toList();
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withOpacity(0.1), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 20,
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -726,41 +842,195 @@ class _ChartContainer extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Iconsax.play_circle, color: AppColors.primary, size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    "On Going Task",
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Icon(Iconsax.search_normal, color: AppColors.textSecondary, size: 18),
+                  const SizedBox(width: 16),
+                  Icon(Iconsax.setting_4, color: AppColors.textSecondary, size: 18),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "Recent gaming sessions layout overview.",
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
+          const SizedBox(height: 24),
+          if (allSessions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: Text(
+                  "No activity logged yet",
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+              ),
+            )
+          else ...[
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: paginatedSessions.length,
+              separatorBuilder: (_, index) => Divider(
+                color: AppColors.border.withValues(alpha: 0.3),
+                height: 32,
+              ),
+              itemBuilder: (context, index) {
+                final session = paginatedSessions[index];
+                
+                return Row(
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(
                         color: AppColors.textPrimary,
-                        letterSpacing: -0.5,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          session.deviceName.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Text(
-                        subtitle,
-                        key: ValueKey(subtitle),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            session.deviceName,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            session.game,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Status", style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                          const SizedBox(height: 2),
+                          Text(
+                            session.isPaid ? "Paid" : "Pending",
+                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Duration", style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                          const SizedBox(height: 2),
+                          Text(
+                            formatDuration(Duration(seconds: session.duration)),
+                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Consumer<SettingsProvider>(
+                      builder: (context, settings, _) {
+                        return Expanded(
+                          flex: 1,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("Price", style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                              const SizedBox(height: 2),
+                              Text(
+                                "${settings.settings.currencySymbol}${session.price}",
+                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+            if (totalPages > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
+                      icon: const Icon(Iconsax.arrow_left_2, size: 18),
+                      label: const Text("Previous"),
+                      style: TextButton.styleFrom(
+                        disabledForegroundColor: AppColors.textMuted,
+                        foregroundColor: AppColors.primary,
+                      ),
+                    ),
+                    Text(
+                      "Page ${_currentPage + 1} of $totalPages",
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                    TextButton(
+                      onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
+                      style: TextButton.styleFrom(
+                        disabledForegroundColor: AppColors.textMuted,
+                        foregroundColor: AppColors.primary,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Text("Next"),
+                          SizedBox(width: 4),
+                          Icon(Iconsax.arrow_right_3, size: 18),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              if (trailing != null) trailing!,
-            ],
-          ),
-          const SizedBox(height: 28),
-          SizedBox(height: 380, child: child),
+          ],
         ],
       ),
     );

@@ -8,12 +8,14 @@ class ExpenseEntry {
   final String category;
   final double amount;
   final String description;
+  final String type; // 'income' or 'expense'
 
   ExpenseEntry({
     required this.date,
     required this.category,
     required this.amount,
     required this.description,
+    required this.type,
   });
 
   factory ExpenseEntry.fromFirestore(DocumentSnapshot doc) {
@@ -24,6 +26,7 @@ class ExpenseEntry {
       category: data['category'],
       amount: (data['amount']).toDouble(),
       description: data['description'],
+      type: (data['type'] as String?) ?? 'expense',
     );
   }
 }
@@ -36,6 +39,16 @@ class ConsoleProfit {
   ConsoleProfit({
     required this.deviceId,
     required this.deviceName,
+    required this.revenue,
+  });
+}
+
+class GameProfit {
+  final String gameName;
+  final double revenue;
+
+  GameProfit({
+    required this.gameName,
     required this.revenue,
   });
 }
