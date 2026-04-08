@@ -71,6 +71,7 @@ class FirebaseSessionService {
     required String deviceId,
     int basePrice = 100,
     int baseDurationSec = 1800,
+    bool forcePaid = false,
   }) async {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final sessionRef = _db.collection(EnvironmentConfig.collection('sessions')).doc(sessionId);
@@ -116,7 +117,7 @@ class FirebaseSessionService {
         'duration': playedSeconds,   // Actual usage
         'price': finalPrice,         // Final price (Full price for fixed, calculated for open)
         'status': 'completed',
-        'isPaid': true,
+        if (forcePaid) 'isPaid': true,
       });
 
       transaction.update(deviceRef, {

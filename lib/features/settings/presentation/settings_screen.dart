@@ -3,6 +3,7 @@ import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:gaming_center/features/billing/widget/widgets.dart';
 import 'package:gaming_center/core/utils/firestore_reset.dart';
+import 'package:gaming_center/core/config/environment.dart';
 import '../../../core/constants/colors.dart';
 import '../data/settings_model.dart';
 import '../providers/settings_provider.dart';
@@ -335,8 +336,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 32),
-                    _buildDangerCard(),
+                    if (EnvironmentConfig.current != AppEnvironment.prod) ...[
+                      const SizedBox(height: 32),
+                      _buildDangerCard(),
+                    ],
                   ],
                 ),
               ),

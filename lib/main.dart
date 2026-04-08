@@ -18,7 +18,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Automatically use Production collections when deployed, and Dev when testing locally.
-  EnvironmentConfig.set(kReleaseMode ? AppEnvironment.prod : AppEnvironment.dev);
+  // EnvironmentConfig.set(kReleaseMode ? AppEnvironment.prod : AppEnvironment.dev);
+  EnvironmentConfig.set(
+      kReleaseMode ? AppEnvironment.prod : AppEnvironment.dev);
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 

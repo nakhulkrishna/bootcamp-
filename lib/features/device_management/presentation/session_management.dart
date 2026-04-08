@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter/foundation.dart';
@@ -21,7 +22,7 @@ class SessionManagement extends StatefulWidget {
   State<SessionManagement> createState() => _SessionManagementState();
 }
 
-class _SessionManagementState extends State<SessionManagement> {
+class _SessionManagementState extends State<SessionManagement> with WidgetsBindingObserver {
   late AudioPlayer _audioPlayer; // For all platforms
   late FlutterTts _flutterTts; // For dynamic voice announcements
   bool _audioUnlocked = false;
@@ -36,13 +37,23 @@ class _SessionManagementState extends State<SessionManagement> {
   bool _audioEnabled = false;
   SessionProvider? _boundSessionProvider;
 
+  // alert queue logic
+  final List<String> _alertQueue = [];
+  bool _isProcessingQueue = false;
+
+  // Background heartbeat logic
+  late AudioPlayer _heartbeatPlayer;
+  Timer? _heartbeatTimer;
+
   @override
   void initState() {
     super.initState();
     _audioPlayer = AudioPlayer();
+    _heartbeatPlayer = AudioPlayer();
     _flutterTts = FlutterTts();
     _audioEnabled = true; // Audio is handled by audioplayers now
     DesktopNotifier.ensureInitialized();
+    WidgetsBinding.instance.addObserver(this);
     if (kIsWeb && _notifier.isSupported) {
       _notificationsEnabled = _notifier.isGranted;
     }
@@ -57,10 +68,45 @@ class _SessionManagementState extends State<SessionManagement> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _heartbeatTimer?.cancel();
+    _heartbeatPlayer.dispose();
     _boundSessionProvider?.removeListener(_checkSessionTimeouts);
     _audioPlayer.dispose();
     _flutterTts.stop();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
+      _startHeartbeat();
+    } else {
+      _stopHeartbeat();
+    }
+  }
+
+  void _startHeartbeat() {
+    if (!kIsWeb) return; // Only needed for Web throttling
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 25), (_) async {
+      if (_audioEnabled) {
+        try {
+          // Play at nearly zero volume to keep audio context alive
+          await _heartbeatPlayer.setVolume(0.001);
+          await _heartbeatPlayer.play(
+            AssetSource('SOUNDS/short-digital-notification-alert-440353.mp3'),
+          );
+        } catch (e) {
+          debugPrint("Heartbeat failed: $e");
+        }
+      }
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatPlayer.stop();
   }
 
   void _checkSessionTimeouts() {
@@ -69,9 +115,11 @@ class _SessionManagementState extends State<SessionManagement> {
     final sessionsData = _boundSessionProvider?.sessions ?? [];
     final consoles = context.read<DeviceProvider>().devices;
 
+    bool hasNewAlerts = false;
+
     for (var session in sessionsData) {
       if (session.endTime != null && 
-          session.remainingSeconds == 0 && 
+          session.remainingSeconds <= 0 && 
           !_alertedSessions.contains(session.id)) {
             
         _alertedSessions.add(session.id);
@@ -85,7 +133,10 @@ class _SessionManagementState extends State<SessionManagement> {
 
         _endedDeviceAlerts.add(device.id);
 
-        _playEndSound(device.name);
+        // Add to queue instead of playing immediately
+        _alertQueue.add(device.name);
+        hasNewAlerts = true;
+
         _notifySessionEnded(device.name, session.game);
 
         if (session.isPaid) {
@@ -95,13 +146,31 @@ class _SessionManagementState extends State<SessionManagement> {
             if (mounted) _showSessionEndedPopup(session);
           });
         }
-        
-        if (mounted) setState(() {});
       }
+    }
+
+    if (hasNewAlerts) {
+      if (mounted) setState(() {});
+      _processAlertQueue();
     }
   }
 
-  void _playEndSound(String deviceName) async {
+  Future<void> _processAlertQueue() async {
+    if (_isProcessingQueue || _alertQueue.isEmpty) return;
+
+    _isProcessingQueue = true;
+
+    while (_alertQueue.isNotEmpty) {
+      final deviceName = _alertQueue.removeAt(0);
+      await _playEndSound(deviceName);
+      // Small gap between announcements for better clarity
+      await Future.delayed(const Duration(milliseconds: 800));
+    }
+
+    _isProcessingQueue = false;
+  }
+
+  Future<void> _playEndSound(String deviceName) async {
     try {
       if (!_audioEnabled) return;
 

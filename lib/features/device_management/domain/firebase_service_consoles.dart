@@ -122,7 +122,7 @@ static Future<void> stopSession(String sessionId, String deviceId) async {
     {
       'endTime': now.millisecondsSinceEpoch,
       'status': 'completed',
-      'isPaid': true,
+      // removed 'isPaid': true
     },
   );
 
